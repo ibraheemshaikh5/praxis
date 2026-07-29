@@ -4,6 +4,7 @@ import {
   between,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -440,7 +441,7 @@ export class DailyPlannerService {
           eq(tasks.userId, userId),
           eq(tasks.version, expectedVersion),
           isNotNull(tasks.deletedAt),
-          sql`${tasks.deletedAt} >= ${cutoff}`,
+          gte(tasks.deletedAt, cutoff),
         ),
       )
       .returning();
@@ -575,7 +576,7 @@ export class DailyPlannerService {
           eq(taskAttachments.userId, userId),
           eq(taskAttachments.taskId, taskId),
           isNotNull(taskAttachments.deletedAt),
-          sql`${taskAttachments.deletedAt} >= ${cutoff}`,
+          gte(taskAttachments.deletedAt, cutoff),
         ),
       )
       .returning();

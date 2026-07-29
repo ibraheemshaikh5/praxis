@@ -11,6 +11,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:unit": "vitest run --exclude tests/daily-planner.integration.test.ts",
+    "test:integration": "vitest run tests/daily-planner.integration.test.ts",
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",

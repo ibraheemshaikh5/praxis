@@ -1,0 +1,1 @@
+-- Intentionally empty. Integration tests create and remove isolated fixtures.
