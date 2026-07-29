@@ -8,6 +8,13 @@
       "when": 1785361658934,
       "tag": "20260729214738_daily_planner_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785362644372,
+      "tag": "20260729220404_attachment_path_integrity",
+      "breakpoints": true
     }
   ]
 }

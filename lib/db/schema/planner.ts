@@ -231,6 +231,10 @@ export const taskAttachments = pgTable(
       sql`${table.byteSize} between 1 and 26214400`,
     ),
     check(
+      "task_attachments_storage_path_owner_check",
+      sql`${table.storagePath} like ${table.userId}::text || '/%'`,
+    ),
+    check(
       "task_attachments_mime_type_check",
       sql`${table.mimeType} in (
         'image/jpeg',
