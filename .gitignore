@@ -5,6 +5,7 @@ build/
 .next/
 .turbo/
 coverage/
+*.tsbuildinfo
 
 # Local configuration
 .env
