@@ -17,8 +17,10 @@ export function DayTimeline({
   onCreate,
   onDelete,
   onReorder,
+  onSchedule,
   onToggle,
   onUpdate,
+  schedulePendingTaskId,
   todayKey,
 }: {
   onCreate: (input: {
@@ -31,12 +33,17 @@ export function DayTimeline({
     plannerDate: PlannerDateKey;
     orderedEntryIds: string[];
   }) => void;
+  onSchedule: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+  }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
     entry: PlannerEntryPayload;
     title?: string;
     notes?: string | null;
   }) => void;
+  schedulePendingTaskId?: string | null;
   todayKey: PlannerDateKey;
 }) {
   const todayPage = React.useMemo(
@@ -128,8 +135,10 @@ export function DayTimeline({
               onCreate={onCreate}
               onDelete={onDelete}
               onReorder={onReorder}
+              onSchedule={onSchedule}
               onToggle={onToggle}
               onUpdate={onUpdate}
+              schedulePendingTaskId={schedulePendingTaskId}
               sectionRef={isToday ? todaySectionRef : undefined}
             />
           );

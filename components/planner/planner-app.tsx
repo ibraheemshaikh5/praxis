@@ -12,6 +12,7 @@ import {
   useCreateTask,
   useDeleteTask,
   useReorderDay,
+  useScheduleTask,
   useToggleCompletion,
   useUpdateTask,
 } from "@/hooks/use-planner";
@@ -41,6 +42,7 @@ export function PlannerApp({
   const toggleCompletion = useToggleCompletion();
   const deleteTask = useDeleteTask();
   const reorderDay = useReorderDay();
+  const scheduleTask = useScheduleTask();
 
   const invalidateMetrics = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: metricsKeys.all });
@@ -121,6 +123,24 @@ export function PlannerApp({
     [reorderDay],
   );
 
+  const handleSchedule = React.useCallback(
+    (input: {
+      entry: PlannerEntryPayload;
+      plannerDate: PlannerDateKey;
+    }) => {
+      scheduleTask.mutate(
+        {
+          taskId: input.entry.taskId,
+          plannerDate: input.plannerDate,
+          expectedVersion: input.entry.task.version,
+          fromDateKey: input.entry.plannerDate,
+        },
+        { onSettled: invalidateMetrics },
+      );
+    },
+    [invalidateMetrics, scheduleTask],
+  );
+
   return (
     <MetricsAnchorProvider anchor={todayKey}>
       <TimelineNavProvider>
@@ -134,8 +154,12 @@ export function PlannerApp({
             onCreate={handleCreate}
             onDelete={handleDelete}
             onReorder={handleReorder}
+            onSchedule={handleSchedule}
             onToggle={handleToggle}
             onUpdate={handleUpdate}
+            schedulePendingTaskId={
+              scheduleTask.isPending ? scheduleTask.variables?.taskId : null
+            }
             todayKey={todayKey}
           />
         </PlannerShell>

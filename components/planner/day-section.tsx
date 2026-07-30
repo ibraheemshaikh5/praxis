@@ -45,8 +45,10 @@ export function DaySection({
   onCreate,
   onDelete,
   onReorder,
+  onSchedule,
   onToggle,
   onUpdate,
+  schedulePendingTaskId,
   sectionRef,
 }: {
   dateKey: PlannerDateKey;
@@ -63,12 +65,17 @@ export function DaySection({
     plannerDate: PlannerDateKey;
     orderedEntryIds: string[];
   }) => void;
+  onSchedule: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+  }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
     entry: PlannerEntryPayload;
     title?: string;
     notes?: string | null;
   }) => void;
+  schedulePendingTaskId?: string | null;
   sectionRef?: React.Ref<HTMLElement>;
 }) {
   const [draftOpen, setDraftOpen] = React.useState(false);
@@ -193,8 +200,10 @@ export function DaySection({
                   entry={entry}
                   key={entry.id}
                   onDelete={onDelete}
+                  onSchedule={onSchedule}
                   onToggle={onToggle}
                   onUpdate={onUpdate}
+                  schedulePending={schedulePendingTaskId === entry.taskId}
                 />
               ))}
             </SortableContext>

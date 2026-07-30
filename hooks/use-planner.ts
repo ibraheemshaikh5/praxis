@@ -15,6 +15,7 @@ import {
   deleteTask,
   fetchPlanner,
   reorderPlanner,
+  scheduleTask,
   setTaskCompletion,
   updateTask,
 } from "@/lib/api/client";
@@ -262,6 +263,53 @@ export function useDeleteTask() {
       reportError(error, "Could not remove that task.");
     },
     onSettled: (_data, _error, input) => invalidateDay(client, input.dateKey),
+  });
+}
+
+export function useScheduleTask() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      taskId: string;
+      plannerDate: PlannerDateKey;
+      expectedVersion: number;
+      fromDateKey: PlannerDateKey;
+    }) =>
+      scheduleTask(input.taskId, {
+        plannerDate: input.plannerDate,
+        expectedVersion: input.expectedVersion,
+      }),
+    async onMutate(input) {
+      const fromQueryKey = plannerKeys.page(plannerPageIndex(input.fromDateKey));
+      await client.cancelQueries({ queryKey: fromQueryKey });
+      const previousFrom = client.getQueryData<PageData>(fromQueryKey);
+
+      client.setQueryData<PageData>(fromQueryKey, (current) =>
+        current
+          ? {
+              ...current,
+              entries: current.entries.filter(
+                (entry) => entry.taskId !== input.taskId,
+              ),
+            }
+          : current,
+      );
+
+      return { previousFrom, fromQueryKey };
+    },
+    onError(error, _input, context) {
+      if (context) {
+        client.setQueryData(context.fromQueryKey, context.previousFrom);
+      }
+      reportError(error, "Could not move that task.");
+    },
+    onSettled: (_data, _error, input) => {
+      void invalidateDay(client, input.fromDateKey);
+      if (input.plannerDate !== input.fromDateKey) {
+        void invalidateDay(client, input.plannerDate);
+      }
+    },
   });
 }
 

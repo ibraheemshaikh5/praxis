@@ -6,22 +6,29 @@ import { CSS } from "@dnd-kit/utilities";
 import { Clock, GripVertical, Trash2 } from "lucide-react";
 
 import { EditableText } from "@/components/planner/editable-text";
+import { TaskDateMenu } from "@/components/planner/task-date-menu";
 import { TaskMetricMenu } from "@/components/planner/task-metric-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PlannerEntryPayload } from "@/lib/api/types";
-import { formatTimeBlock } from "@/lib/planner/dates";
+import { formatTimeBlock, type PlannerDateKey } from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
 
 export function TaskRow({
   entry,
   onDelete,
+  onSchedule,
   onToggle,
   onUpdate,
   pending,
+  schedulePending,
 }: {
   entry: PlannerEntryPayload;
   onDelete: (entry: PlannerEntryPayload) => void;
+  onSchedule: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+  }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
     entry: PlannerEntryPayload;
@@ -29,6 +36,7 @@ export function TaskRow({
     notes?: string | null;
   }) => void;
   pending?: boolean;
+  schedulePending?: boolean;
 }) {
   const completed = Boolean(entry.task.completedAt);
   const timeBlock = formatTimeBlock(
@@ -210,6 +218,11 @@ export function TaskRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          <TaskDateMenu
+            entry={entry}
+            onSchedule={onSchedule}
+            pending={schedulePending}
+          />
           <TaskMetricMenu taskId={entry.taskId} taskTitle={entry.task.title} />
           <Button
             aria-label={`Remove ${entry.task.title}`}
