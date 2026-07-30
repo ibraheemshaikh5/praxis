@@ -48,14 +48,13 @@ export function PlannerDatePicker({
         </p>
       </div>
 
+      {/* `required` keeps re-picking the current day from clearing the selection. */}
       <Calendar
         className="p-0"
         defaultMonth={selected}
         mode="single"
-        onSelect={(date) => {
-          if (!date) return;
-          onSelect(localDateToPlannerKey(date));
-        }}
+        onSelect={(date) => onSelect(localDateToPlannerKey(date))}
+        required
         selected={selected}
         today={today}
       />
