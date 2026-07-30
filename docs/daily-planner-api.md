@@ -20,6 +20,15 @@ owner from that session; request bodies never contain `user_id`.
   returns a signed upload target.
 - Attachment `confirm`, `retry`, `restore`, and `DELETE` routes operate below
   `/api/tasks/:taskId/attachments/:attachmentId`.
+- `GET /api/metrics?anchor=YYYY-MM-DD` returns each active goal metric with
+  its count for the period containing the anchor, an 8-bucket history, and
+  per-day hit flags for the current period.
+- `POST /api/metrics` creates a metric (`name`, `keywords`, `targetCount`,
+  `period` of `day` | `week` | `month`).
+- `PATCH /api/metrics/:metricId` updates any subset of those fields.
+- `DELETE /api/metrics/:metricId` archives a metric.
+- `POST /api/tasks/:taskId/metric-links` sets a per-task override
+  (`metricId`, `state` of `included` | `excluded` | `clear`).
 
 Task mutations accept `expectedVersion` and return `409 VERSION_CONFLICT` when
 the client is stale. A successful task mutation increments `version`.
@@ -28,6 +37,12 @@ Nonexistent and non-owned resources both return `404`.
 Calendar dates are `YYYY-MM-DD`. Time blocks use ISO 8601 timestamps with an
 explicit offset and must remain within the planner date in the profile time
 zone.
+
+Completed tasks count toward a metric when they are not soft-deleted and either
+an `included` override exists or a keyword matches the normalized title via
+Postgres `word_similarity` at a 0.6 cutoff. An `excluded` override always wins.
+Tasks are attributed to their active planner date, otherwise to the calendar
+date of `completed_at` in the profile time zone.
 
 ## Attachment flow
 

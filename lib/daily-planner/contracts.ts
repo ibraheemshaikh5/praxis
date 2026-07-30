@@ -13,6 +13,14 @@ const calendarDate = z
 const timestampWithOffset = z.string().datetime({ offset: true });
 const expectedVersion = z.number().int().positive();
 
+const metricName = z.string().trim().min(1).max(120);
+const metricKeywords = z
+  .array(z.string().trim().toLowerCase().min(1).max(60))
+  .min(1)
+  .max(20);
+const metricTargetCount = z.number().int().min(1).max(1000);
+const metricPeriod = z.enum(["day", "week", "month"]);
+
 export const plannerRangeQuerySchema = z
   .object({
     from: calendarDate,
@@ -100,6 +108,38 @@ export const reserveAttachmentSchema = z.object({
   byteSize: z.number().int().min(1).max(26_214_400),
 });
 
+export const metricsQuerySchema = z.object({
+  anchor: calendarDate,
+});
+
+export const createMetricSchema = z.object({
+  name: metricName,
+  keywords: metricKeywords,
+  targetCount: metricTargetCount,
+  period: metricPeriod,
+});
+
+export const updateMetricSchema = z
+  .object({
+    name: metricName.optional(),
+    keywords: metricKeywords.optional(),
+    targetCount: metricTargetCount.optional(),
+    period: metricPeriod.optional(),
+  })
+  .refine(
+    ({ name, keywords, targetCount, period }) =>
+      name !== undefined ||
+      keywords !== undefined ||
+      targetCount !== undefined ||
+      period !== undefined,
+    { message: "Provide at least one metric field to update" },
+  );
+
+export const setMetricLinkSchema = z.object({
+  metricId: z.string().uuid(),
+  state: z.enum(["included", "excluded", "clear"]),
+});
+
 function validateScheduleFields(
   value: {
     plannerDate?: string | null;
@@ -144,3 +184,7 @@ export type CompletionInput = z.infer<typeof completionSchema>;
 export type ScheduleTaskInput = z.infer<typeof scheduleTaskSchema>;
 export type ReorderPlannerInput = z.infer<typeof reorderPlannerSchema>;
 export type ReserveAttachmentInput = z.infer<typeof reserveAttachmentSchema>;
+export type MetricsQuery = z.infer<typeof metricsQuerySchema>;
+export type CreateMetricInput = z.infer<typeof createMetricSchema>;
+export type UpdateMetricInput = z.infer<typeof updateMetricSchema>;
+export type SetMetricLinkInput = z.infer<typeof setMetricLinkSchema>;
