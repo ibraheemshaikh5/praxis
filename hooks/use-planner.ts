@@ -190,7 +190,42 @@ export function useUpdateTask() {
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         expectedVersion: input.expectedVersion,
       }),
-    onError: (error) => reportError(error, "Could not save that change."),
+    async onMutate(input) {
+      const queryKey = plannerKeys.page(plannerPageIndex(input.dateKey));
+      await client.cancelQueries({ queryKey });
+      const previous = client.getQueryData<PageData>(queryKey);
+
+      client.setQueryData<PageData>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              entries: current.entries.map((entry) =>
+                entry.taskId === input.taskId
+                  ? {
+                      ...entry,
+                      task: {
+                        ...entry.task,
+                        ...(input.title !== undefined
+                          ? { title: input.title }
+                          : {}),
+                        ...(input.notes !== undefined
+                          ? { notes: input.notes }
+                          : {}),
+                        version: entry.task.version + 1,
+                      },
+                    }
+                  : entry,
+              ),
+            }
+          : current,
+      );
+
+      return { previous, queryKey };
+    },
+    onError(error, _input, context) {
+      if (context) client.setQueryData(context.queryKey, context.previous);
+      reportError(error, "Could not save that change.");
+    },
     onSettled: (_data, _error, input) => invalidateDay(client, input.dateKey),
   });
 }

@@ -4,13 +4,16 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DayTimeline } from "@/components/planner/day-timeline";
+import { TodayButton } from "@/components/planner/jump-to-today";
 import { MetricsRail } from "@/components/planner/metrics-rail";
 import { PlannerShell } from "@/components/planner/planner-shell";
+import { TimelineNavProvider } from "@/components/planner/timeline-nav";
 import {
   useCreateTask,
   useDeleteTask,
   useReorderDay,
   useToggleCompletion,
+  useUpdateTask,
 } from "@/hooks/use-planner";
 import { MetricsAnchorProvider, metricsKeys } from "@/hooks/use-metrics";
 import { signOut } from "@/lib/auth/actions";
@@ -34,6 +37,7 @@ export function PlannerApp({
 
   const queryClient = useQueryClient();
   const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
   const toggleCompletion = useToggleCompletion();
   const deleteTask = useDeleteTask();
   const reorderDay = useReorderDay();
@@ -56,6 +60,26 @@ export function PlannerApp({
       invalidateMetrics();
     },
     [createTask, invalidateMetrics],
+  );
+
+  const handleUpdate = React.useCallback(
+    (input: {
+      entry: PlannerEntryPayload;
+      title?: string;
+      notes?: string | null;
+    }) => {
+      updateTask.mutate(
+        {
+          taskId: input.entry.taskId,
+          title: input.title,
+          notes: input.notes,
+          expectedVersion: input.entry.task.version,
+          dateKey: input.entry.plannerDate,
+        },
+        { onSettled: invalidateMetrics },
+      );
+    },
+    [invalidateMetrics, updateTask],
   );
 
   const handleToggle = React.useCallback(
@@ -99,20 +123,23 @@ export function PlannerApp({
 
   return (
     <MetricsAnchorProvider anchor={todayKey}>
-      <PlannerShell
-        onSignOut={() => void signOut()}
-        rail={<MetricsRail todayKey={todayKey} />}
-        userEmail={userEmail}
-      >
-        <DayTimeline
-          onCreate={handleCreate}
-          onDelete={handleDelete}
-          onReorder={handleReorder}
-          onToggle={handleToggle}
-          pendingCreate={createTask.isPending}
-          todayKey={todayKey}
-        />
-      </PlannerShell>
+      <TimelineNavProvider>
+        <PlannerShell
+          headerAction={<TodayButton />}
+          onSignOut={() => void signOut()}
+          rail={<MetricsRail todayKey={todayKey} />}
+          userEmail={userEmail}
+        >
+          <DayTimeline
+            onCreate={handleCreate}
+            onDelete={handleDelete}
+            onReorder={handleReorder}
+            onToggle={handleToggle}
+            onUpdate={handleUpdate}
+            todayKey={todayKey}
+          />
+        </PlannerShell>
+      </TimelineNavProvider>
     </MetricsAnchorProvider>
   );
 }

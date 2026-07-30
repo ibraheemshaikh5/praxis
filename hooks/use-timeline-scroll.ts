@@ -40,6 +40,9 @@ export function useTimelineScroll({
     const container = scrollRef.current;
     if (!restore || !container) return;
 
+    // Suspend snapping so the browser does not re-snap over the restore write.
+    container.dataset.snap = "off";
+
     const anchor = document.getElementById(restore.id);
     if (anchor) {
       const containerTop = container.getBoundingClientRect().top;
@@ -50,12 +53,19 @@ export function useTimelineScroll({
     restoreRef.current = null;
     // Ignore the top sentinel briefly so compensation does not cascade.
     ignoreTopRef.current = true;
+
+    const frame = window.requestAnimationFrame(() => {
+      delete container.dataset.snap;
+    });
     const timer = window.setTimeout(() => {
       ignoreTopRef.current = false;
     }, 400);
+
     return () => {
+      window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
       ignoreTopRef.current = false;
+      delete container.dataset.snap;
     };
   }, [pageIndices]);
 

@@ -16,9 +16,12 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CirclePlus } from "lucide-react";
 
-import { AddTaskForm } from "@/components/planner/add-task-form";
+import { DraftTaskRow } from "@/components/planner/draft-task-row";
 import { TaskRow } from "@/components/planner/task-row";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlannerEntryPayload } from "@/lib/api/types";
 import {
@@ -27,6 +30,12 @@ import {
   type PlannerDateKey,
 } from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
+
+type PendingCreate = {
+  id: string;
+  title: string;
+  notes: string | null;
+};
 
 export function DaySection({
   dateKey,
@@ -37,7 +46,7 @@ export function DaySection({
   onDelete,
   onReorder,
   onToggle,
-  pendingCreate,
+  onUpdate,
   sectionRef,
 }: {
   dateKey: PlannerDateKey;
@@ -55,9 +64,19 @@ export function DaySection({
     orderedEntryIds: string[];
   }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
-  pendingCreate: boolean;
+  onUpdate: (input: {
+    entry: PlannerEntryPayload;
+    title?: string;
+    notes?: string | null;
+  }) => void;
   sectionRef?: React.Ref<HTMLElement>;
 }) {
+  const [draftOpen, setDraftOpen] = React.useState(false);
+  const [draftKey, setDraftKey] = React.useState(0);
+  const [pendingCreates, setPendingCreates] = React.useState<PendingCreate[]>(
+    [],
+  );
+
   const remaining = entries.filter((entry) => !entry.task.completedAt).length;
   const headingId = `day-heading-${dateKey}`;
   const entryIds = entries.map((entry) => entry.id);
@@ -83,10 +102,40 @@ export function DaySection({
     onReorder({ plannerDate: dateKey, orderedEntryIds });
   }
 
+  async function handleDraftCommit(input: {
+    title: string;
+    notes: string | null;
+    continueDraft: boolean;
+  }) {
+    const pendingId = crypto.randomUUID();
+    setPendingCreates((current) => [
+      ...current,
+      { id: pendingId, title: input.title, notes: input.notes },
+    ]);
+
+    if (input.continueDraft) {
+      setDraftKey((key) => key + 1);
+    } else {
+      setDraftOpen(false);
+    }
+
+    try {
+      await onCreate({
+        dateKey,
+        title: input.title,
+        notes: input.notes,
+      });
+    } finally {
+      setPendingCreates((current) =>
+        current.filter((item) => item.id !== pendingId),
+      );
+    }
+  }
+
   return (
     <section
       aria-labelledby={headingId}
-      className="scroll-mt-0 py-5"
+      className="flex min-h-(--planner-pane) snap-start snap-always flex-col border-t border-border/60 py-5"
       data-day={dateKey}
       id={`day-${dateKey}`}
       ref={sectionRef}
@@ -114,9 +163,11 @@ export function DaySection({
             {formatMonthDay(dateKey)}
           </span>
         </h2>
-        {entries.length > 0 ? (
+        {entries.length > 0 || pendingCreates.length > 0 ? (
           <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-            {remaining > 0 ? `${remaining} left` : "all done"}
+            {remaining > 0 || pendingCreates.length > 0
+              ? `${remaining + pendingCreates.length} left`
+              : "all done"}
           </span>
         ) : null}
       </div>
@@ -143,20 +194,69 @@ export function DaySection({
                   key={entry.id}
                   onDelete={onDelete}
                   onToggle={onToggle}
+                  onUpdate={onUpdate}
                 />
               ))}
             </SortableContext>
           </DndContext>
         )}
+
+        {pendingCreates.map((item) => (
+          <PendingTaskRow key={item.id} notes={item.notes} title={item.title} />
+        ))}
+
+        {draftOpen ? (
+          <DraftTaskRow
+            key={draftKey}
+            onCommit={handleDraftCommit}
+            onDiscard={() => setDraftOpen(false)}
+          />
+        ) : null}
       </div>
 
-      <div className="mt-2">
-        <AddTaskForm
-          dateKey={dateKey}
-          onSubmit={({ title, notes }) => onCreate({ dateKey, title, notes })}
-          pending={pendingCreate}
-        />
-      </div>
+      {!draftOpen ? (
+        <div className="mt-2">
+          <Button
+            className="w-full justify-start rounded-xl border-dashed text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setDraftKey((key) => key + 1);
+              setDraftOpen(true);
+            }}
+            variant="outline"
+          >
+            <CirclePlus data-icon="inline-start" />
+            Add a task
+          </Button>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function PendingTaskRow({
+  title,
+  notes,
+}: {
+  title: string;
+  notes: string | null;
+}) {
+  return (
+    <article
+      aria-busy
+      className="flex min-w-0 items-start gap-2 rounded-xl border border-transparent px-2 py-2.5 opacity-60"
+    >
+      <Checkbox
+        aria-label={`Saving ${title}`}
+        checked={false}
+        className="mt-1.5"
+        disabled
+      />
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="text-[15px] font-medium leading-5">{title}</p>
+        {notes ? (
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">{notes}</p>
+        ) : null}
+      </div>
+    </article>
   );
 }

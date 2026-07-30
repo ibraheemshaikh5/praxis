@@ -11,11 +11,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export function PlannerShell({
   children,
+  headerAction,
   rail,
   userEmail,
   onSignOut,
 }: {
   children: React.ReactNode;
+  headerAction?: React.ReactNode;
   rail?: React.ReactNode;
   userEmail: string | null;
   onSignOut: () => void;
@@ -70,9 +72,12 @@ export function PlannerShell({
             Daily planner
           </p>
 
-          <div className="flex items-center gap-1 lg:hidden">
-            <ThemeToggle />
-            <ShellAccountMenu onSignOut={onSignOut} userEmail={userEmail} />
+          <div className="flex items-center gap-1">
+            {headerAction}
+            <div className="flex items-center gap-1 lg:hidden">
+              <ThemeToggle />
+              <ShellAccountMenu onSignOut={onSignOut} userEmail={userEmail} />
+            </div>
           </div>
         </header>
 

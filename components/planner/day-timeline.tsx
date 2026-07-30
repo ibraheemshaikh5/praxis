@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { DaySection } from "@/components/planner/day-section";
-import { JumpToToday } from "@/components/planner/jump-to-today";
+import { usePublishTimelineNav } from "@/components/planner/timeline-nav";
 import { usePlannerPages } from "@/hooks/use-planner";
 import { useTimelineScroll } from "@/hooks/use-timeline-scroll";
 import type { PlannerEntryPayload } from "@/lib/api/types";
@@ -18,7 +18,7 @@ export function DayTimeline({
   onDelete,
   onReorder,
   onToggle,
-  pendingCreate,
+  onUpdate,
   todayKey,
 }: {
   onCreate: (input: {
@@ -32,7 +32,11 @@ export function DayTimeline({
     orderedEntryIds: string[];
   }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
-  pendingCreate: boolean;
+  onUpdate: (input: {
+    entry: PlannerEntryPayload;
+    title?: string;
+    notes?: string | null;
+  }) => void;
   todayKey: PlannerDateKey;
 }) {
   const todayPage = React.useMemo(
@@ -88,10 +92,20 @@ export function DayTimeline({
     todayKey,
   });
 
+  const setNav = usePublishTimelineNav();
+
+  React.useEffect(() => {
+    setNav({
+      direction: jumpDirection,
+      jumpToToday,
+      visible: jumpVisible,
+    });
+  }, [jumpDirection, jumpToToday, jumpVisible, setNav]);
+
   return (
     <div className="relative">
       <div
-        className="h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain"
+        className="h-(--planner-pane) -ml-4 snap-y snap-mandatory overflow-y-auto overscroll-contain pl-4 sm:-ml-8 sm:pl-8"
         ref={scrollRef}
       >
         <div
@@ -100,28 +114,26 @@ export function DayTimeline({
           ref={topSentinelRef}
         />
 
-        <div className="divide-y divide-border/60 pb-24">
-          {dayKeys.map((dateKey) => {
-            const pageIndex = plannerPageIndex(dateKey);
-            const isToday = dateKey === todayKey;
+        {dayKeys.map((dateKey) => {
+          const pageIndex = plannerPageIndex(dateKey);
+          const isToday = dateKey === todayKey;
 
-            return (
-              <DaySection
-                dateKey={dateKey}
-                entries={entriesByDay.get(dateKey) ?? []}
-                isToday={isToday}
-                key={dateKey}
-                loading={!loadedPages.has(pageIndex)}
-                onCreate={onCreate}
-                onDelete={onDelete}
-                onReorder={onReorder}
-                onToggle={onToggle}
-                pendingCreate={pendingCreate}
-                sectionRef={isToday ? todaySectionRef : undefined}
-              />
-            );
-          })}
-        </div>
+          return (
+            <DaySection
+              dateKey={dateKey}
+              entries={entriesByDay.get(dateKey) ?? []}
+              isToday={isToday}
+              key={dateKey}
+              loading={!loadedPages.has(pageIndex)}
+              onCreate={onCreate}
+              onDelete={onDelete}
+              onReorder={onReorder}
+              onToggle={onToggle}
+              onUpdate={onUpdate}
+              sectionRef={isToday ? todaySectionRef : undefined}
+            />
+          );
+        })}
 
         <div
           aria-hidden
@@ -129,12 +141,6 @@ export function DayTimeline({
           ref={bottomSentinelRef}
         />
       </div>
-
-      <JumpToToday
-        direction={jumpDirection}
-        onJump={jumpToToday}
-        visible={jumpVisible}
-      />
     </div>
   );
 }

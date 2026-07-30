@@ -2,19 +2,18 @@
 
 import { useTimelineNav } from "@/components/planner/timeline-nav";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export function TodayButton() {
   const { jumpToToday, visible } = useTimelineNav();
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Button
       aria-label="Jump to today"
-      className={cn(
-        "rounded-4xl",
-        !visible && "text-muted-foreground",
-      )}
-      disabled={!visible}
+      className="rounded-4xl"
       onClick={jumpToToday}
       size="sm"
       type="button"
