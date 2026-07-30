@@ -48,6 +48,7 @@
 }
 
 :root {
+  --planner-pane: calc(100dvh - 4rem);
   --background: oklch(0.977 0.006 106.4);
   --foreground: oklch(0.213 0.012 107.2);
   --card: oklch(0.995 0.002 106.4);
@@ -136,5 +137,18 @@
       transparent 0.75px
     );
     background-size: 18px 18px;
+  }
+
+  .planner-wash {
+    background-image: radial-gradient(
+      ellipse at top,
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 55%
+    );
+  }
+
+  /* Suspend scroll-snap for one frame while restoring scroll after a prepend. */
+  [data-snap="off"] {
+    scroll-snap-type: none;
   }
 }

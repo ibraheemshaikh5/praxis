@@ -8,6 +8,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -41,6 +42,13 @@ export const attachmentUploadStatus = pgEnum("attachment_upload_status", [
   "failed",
 ]);
 
+export const metricPeriod = pgEnum("metric_period", ["day", "week", "month"]);
+
+export const metricLinkState = pgEnum("metric_link_state", [
+  "included",
+  "excluded",
+]);
+
 export const profiles = pgTable(
   "profiles",
   {
@@ -62,6 +70,9 @@ export const tasks = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").notNull(),
     title: text("title").notNull(),
+    titleNormalized: text("title_normalized").generatedAlwaysAs(
+      sql`lower(regexp_replace(title, '[^a-zA-Z0-9 ]', '', 'g'))`,
+    ),
     notes: text("notes"),
     completedAt: timestamp("completed_at", {
       withTimezone: true,
@@ -96,6 +107,10 @@ export const tasks = pgTable(
       table.completedAt,
     ),
     index("tasks_user_created_idx").on(table.userId, table.createdAt),
+    index("tasks_title_trgm_idx").using(
+      "gin",
+      sql`${table.titleNormalized} extensions.gin_trgm_ops`,
+    ),
   ],
 );
 
@@ -257,6 +272,73 @@ export const taskAttachments = pgTable(
   ],
 );
 
+export const metrics = pgTable(
+  "metrics",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    name: text("name").notNull(),
+    keywords: text("keywords").array().notNull(),
+    targetCount: integer("target_count").notNull(),
+    period: metricPeriod("period").notNull(),
+    endsOn: date("ends_on", { mode: "string" }),
+    archivedAt: timestamp("archived_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("metrics_id_user_id_key").on(table.id, table.userId),
+    foreignKey({
+      name: "metrics_user_id_profiles_id_fk",
+      columns: [table.userId],
+      foreignColumns: [profiles.id],
+    }).onDelete("cascade"),
+    check(
+      "metrics_name_length_check",
+      sql`length(trim(${table.name})) between 1 and 120`,
+    ),
+    check(
+      "metrics_target_count_check",
+      sql`${table.targetCount} between 1 and 1000`,
+    ),
+    check(
+      "metrics_keywords_check",
+      sql`public.metric_keywords_valid(${table.keywords})`,
+    ),
+    index("metrics_user_active_idx").on(table.userId, table.archivedAt),
+  ],
+);
+
+export const taskMetricLinks = pgTable(
+  "task_metric_links",
+  {
+    taskId: uuid("task_id").notNull(),
+    metricId: uuid("metric_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    state: metricLinkState("state").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({
+      name: "task_metric_links_pkey",
+      columns: [table.taskId, table.metricId],
+    }),
+    foreignKey({
+      name: "task_metric_links_task_owner_fk",
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "task_metric_links_metric_owner_fk",
+      columns: [table.metricId, table.userId],
+      foreignColumns: [metrics.id, metrics.userId],
+    }).onDelete("cascade"),
+    index("task_metric_links_user_metric_idx").on(table.userId, table.metricId),
+  ],
+);
+
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
@@ -265,3 +347,7 @@ export type PlannerEntry = typeof plannerEntries.$inferSelect;
 export type NewPlannerEntry = typeof plannerEntries.$inferInsert;
 export type TaskAttachment = typeof taskAttachments.$inferSelect;
 export type NewTaskAttachment = typeof taskAttachments.$inferInsert;
+export type Metric = typeof metrics.$inferSelect;
+export type NewMetric = typeof metrics.$inferInsert;
+export type TaskMetricLink = typeof taskMetricLinks.$inferSelect;
+export type NewTaskMetricLink = typeof taskMetricLinks.$inferInsert;

@@ -17,28 +17,38 @@ import { alias } from "drizzle-orm/pg-core";
 
 import type { Database } from "@/lib/db/client";
 import {
+  metrics,
   plannerEntries,
   profiles,
   taskAttachments,
+  taskMetricLinks,
   tasks,
 } from "@/lib/db/schema";
 
 import type {
   CompletionInput,
+  CreateMetricInput,
   CreateTaskInput,
+  MetricsQuery,
   PlannerRangeQuery,
   ReorderPlannerInput,
   ReserveAttachmentInput,
   ScheduleTaskInput,
+  SetMetricLinkInput,
+  UpdateMetricInput,
   UpdateTaskInput,
 } from "./contracts";
 import { ConflictError, NotFoundError, StorageError } from "./errors";
 import type { AttachmentStorage } from "./storage";
-import { validateTimeBlock } from "./time";
+import { calendarDateInTimeZone, validateTimeBlock } from "./time";
 
 const POSITION_STEP = 1024;
 const RECOVERY_DAYS = 30;
 const PENDING_UPLOAD_HOURS = 24;
+// pg_trgm word_similarity cutoff a keyword must reach against a task title.
+const METRIC_MATCH_THRESHOLD = 0.6;
+// The current period plus the seven that precede it.
+const METRIC_HISTORY_PERIODS = 8;
 
 export class DailyPlannerService {
   constructor(private readonly db: Database) {}
@@ -650,6 +660,146 @@ export class DailyPlannerService {
     return result;
   }
 
+  async listMetrics(userId: string, query: MetricsQuery) {
+    const profile = await this.db.query.profiles.findFirst({
+      where: eq(profiles.id, userId),
+    });
+    if (!profile) throw new NotFoundError("User profile not found");
+    // Rejects an unusable stored zone before Postgres raises a raw error.
+    calendarDateInTimeZone(new Date(), profile.timeZone);
+
+    const metricRows = await this.db
+      .select()
+      .from(metrics)
+      .where(and(eq(metrics.userId, userId), isNull(metrics.archivedAt)))
+      .orderBy(asc(metrics.createdAt), asc(metrics.id));
+
+    const statRows = await this.db.execute<MetricStatsRow>(
+      metricStatsQuery(userId, profile.timeZone, query.anchor),
+    );
+    const statsByMetric = new Map(statRows.map((row) => [row.metricId, row]));
+
+    return {
+      anchor: query.anchor,
+      metrics: metricRows.map((metric) => {
+        const stats = statsByMetric.get(metric.id);
+        return {
+          ...metric,
+          periodStart: stats?.periodStart ?? query.anchor,
+          periodEnd: stats?.periodEnd ?? query.anchor,
+          currentCount: stats?.currentCount ?? 0,
+          history: stats?.history ?? [],
+          days: stats?.days ?? [],
+        };
+      }),
+    };
+  }
+
+  async createMetric(userId: string, input: CreateMetricInput) {
+    const profile = await this.db.query.profiles.findFirst({
+      where: eq(profiles.id, userId),
+    });
+    if (!profile) throw new NotFoundError("User profile not found");
+
+    const [metric] = await this.db
+      .insert(metrics)
+      .values({
+        userId,
+        name: input.name,
+        keywords: input.keywords,
+        targetCount: input.targetCount,
+        period: input.period,
+        endsOn: input.endsOn ?? null,
+      })
+      .returning();
+
+    return metric;
+  }
+
+  async updateMetric(
+    userId: string,
+    metricId: string,
+    input: UpdateMetricInput,
+  ) {
+    const [updated] = await this.db
+      .update(metrics)
+      .set({
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.keywords !== undefined ? { keywords: input.keywords } : {}),
+        ...(input.targetCount !== undefined
+          ? { targetCount: input.targetCount }
+          : {}),
+        ...(input.period !== undefined ? { period: input.period } : {}),
+        ...(input.endsOn !== undefined ? { endsOn: input.endsOn } : {}),
+      })
+      .where(
+        and(
+          eq(metrics.id, metricId),
+          eq(metrics.userId, userId),
+          isNull(metrics.archivedAt),
+        ),
+      )
+      .returning();
+
+    if (!updated) throw new NotFoundError();
+    return updated;
+  }
+
+  async archiveMetric(userId: string, metricId: string) {
+    const [archived] = await this.db
+      .update(metrics)
+      .set({ archivedAt: new Date() })
+      .where(
+        and(
+          eq(metrics.id, metricId),
+          eq(metrics.userId, userId),
+          isNull(metrics.archivedAt),
+        ),
+      )
+      .returning();
+
+    if (!archived) throw new NotFoundError();
+    return archived;
+  }
+
+  async setMetricLink(
+    userId: string,
+    taskId: string,
+    input: SetMetricLinkInput,
+  ) {
+    await this.requireActiveTask(userId, taskId);
+    await this.requireActiveMetric(userId, input.metricId);
+
+    if (input.state === "clear") {
+      await this.db
+        .delete(taskMetricLinks)
+        .where(
+          and(
+            eq(taskMetricLinks.taskId, taskId),
+            eq(taskMetricLinks.metricId, input.metricId),
+            eq(taskMetricLinks.userId, userId),
+          ),
+        );
+      return { link: null };
+    }
+
+    const [link] = await this.db
+      .insert(taskMetricLinks)
+      .values({
+        taskId,
+        metricId: input.metricId,
+        userId,
+        state: input.state,
+      })
+      .onConflictDoUpdate({
+        target: [taskMetricLinks.taskId, taskMetricLinks.metricId],
+        set: { state: input.state },
+      })
+      .returning();
+
+    return { link };
+  }
+
   private async findOwnedTask(userId: string, taskId: string) {
     const [task] = await this.db
       .select()
@@ -663,6 +813,23 @@ export class DailyPlannerService {
     const task = await this.findOwnedTask(userId, taskId);
     if (!task || task.deletedAt) throw new NotFoundError();
     return task;
+  }
+
+  private async requireActiveMetric(userId: string, metricId: string) {
+    const [metric] = await this.db
+      .select()
+      .from(metrics)
+      .where(
+        and(
+          eq(metrics.id, metricId),
+          eq(metrics.userId, userId),
+          isNull(metrics.archivedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!metric) throw new NotFoundError();
+    return metric;
   }
 
   private async findOwnedAttachment(
@@ -695,6 +862,205 @@ export class DailyPlannerService {
     }
     throw new ConflictError();
   }
+}
+
+type MetricPeriodStat = {
+  periodStart: string;
+  periodEnd: string;
+  count: number;
+};
+
+type MetricDayStat = {
+  date: string;
+  hit: boolean;
+};
+
+type MetricStatsRow = {
+  metricId: string;
+  periodStart: string;
+  periodEnd: string;
+  currentCount: number;
+  history: MetricPeriodStat[];
+  days: MetricDayStat[];
+};
+
+/**
+ * Counts matching tasks per metric for the anchor period and the periods
+ * before it. Period boundaries are calendar maths in the profile time zone;
+ * `date_trunc('week', ...)` makes weeks start on Monday. A task is attributed
+ * to its active planner entry's date, falling back to the local calendar date
+ * of `completed_at`.
+ */
+function metricStatsQuery(userId: string, timeZone: string, anchor: string) {
+  return sql`
+    with metric_rows as (
+      select id, period, keywords
+      from ${metrics}
+      where user_id = ${userId}::uuid
+        and archived_at is null
+    ),
+    bounds as (
+      select
+        m.id as metric_id,
+        m.period,
+        m.keywords,
+        case m.period
+          when 'day' then ${anchor}::date
+          when 'week' then date_trunc('week', ${anchor}::date)::date
+          else date_trunc('month', ${anchor}::date)::date
+        end as current_start
+      from metric_rows m
+    ),
+    period_starts as (
+      select
+        b.metric_id,
+        b.period,
+        series.n as period_offset,
+        case b.period
+          when 'day' then b.current_start - series.n
+          when 'week' then b.current_start - (series.n * 7)
+          else (b.current_start - (series.n * interval '1 month'))::date
+        end as period_start
+      from bounds b
+      cross join generate_series(
+        0,
+        ${METRIC_HISTORY_PERIODS - 1}::integer
+      ) as series(n)
+    ),
+    period_ranges as (
+      select
+        p.metric_id,
+        p.period_offset,
+        p.period_start,
+        case p.period
+          when 'day' then p.period_start
+          when 'week' then p.period_start + 6
+          else (p.period_start + interval '1 month' - interval '1 day')::date
+        end as period_end
+      from period_starts p
+    ),
+    window_bounds as (
+      select min(period_start) as from_date, max(period_end) as to_date
+      from period_ranges
+    ),
+    attributed as (
+      select
+        t.id as task_id,
+        t.title_normalized,
+        coalesce(
+          entry.planner_date,
+          timezone(${timeZone}::text, t.completed_at)::date
+        ) as attributed_date
+      from ${tasks} t
+      left join ${plannerEntries} entry
+        on entry.task_id = t.id
+        and entry.user_id = t.user_id
+        and entry.closed_at is null
+      where t.user_id = ${userId}::uuid
+        and t.deleted_at is null
+        and t.completed_at is not null
+    ),
+    in_window as (
+      select a.*
+      from attributed a
+      cross join window_bounds w
+      where a.attributed_date between w.from_date and w.to_date
+    ),
+    matches as (
+      select b.metric_id, a.task_id, a.attributed_date
+      from bounds b
+      cross join in_window a
+      left join ${taskMetricLinks} link
+        on link.metric_id = b.metric_id
+        and link.task_id = a.task_id
+      where link.state is distinct from 'excluded'
+        and (
+          link.state = 'included'
+          or exists (
+            select 1
+            from unnest(b.keywords) as keyword
+            where extensions.word_similarity(keyword, a.title_normalized)
+              >= ${METRIC_MATCH_THRESHOLD}::real
+          )
+        )
+    ),
+    period_counts as (
+      select
+        r.metric_id,
+        r.period_offset,
+        r.period_start,
+        r.period_end,
+        (
+          select count(*)::integer
+          from matches m
+          where m.metric_id = r.metric_id
+            and m.attributed_date between r.period_start and r.period_end
+        ) as count
+      from period_ranges r
+    ),
+    current_days as (
+      select
+        r.metric_id,
+        series.day::date as day,
+        exists (
+          select 1
+          from matches m
+          where m.metric_id = r.metric_id
+            and m.attributed_date = series.day::date
+        ) as hit
+      from period_ranges r
+      cross join lateral generate_series(
+        r.period_start::timestamp,
+        r.period_end::timestamp,
+        interval '1 day'
+      ) as series(day)
+      where r.period_offset = 0
+    )
+    select
+      b.metric_id as "metricId",
+      (
+        select pc.period_start::text
+        from period_counts pc
+        where pc.metric_id = b.metric_id and pc.period_offset = 0
+      ) as "periodStart",
+      (
+        select pc.period_end::text
+        from period_counts pc
+        where pc.metric_id = b.metric_id and pc.period_offset = 0
+      ) as "periodEnd",
+      (
+        select pc.count
+        from period_counts pc
+        where pc.metric_id = b.metric_id and pc.period_offset = 0
+      ) as "currentCount",
+      coalesce(
+        (
+          select jsonb_agg(
+            jsonb_build_object(
+              'periodStart', pc.period_start::text,
+              'periodEnd', pc.period_end::text,
+              'count', pc.count
+            )
+            order by pc.period_offset desc
+          )
+          from period_counts pc
+          where pc.metric_id = b.metric_id
+        ),
+        '[]'::jsonb
+      ) as history,
+      coalesce(
+        (
+          select jsonb_agg(
+            jsonb_build_object('date', cd.day::text, 'hit', cd.hit)
+            order by cd.day
+          )
+          from current_days cd
+          where cd.metric_id = b.metric_id
+        ),
+        '[]'::jsonb
+      ) as days
+    from bounds b
+  `;
 }
 
 type QueryExecutor = Pick<Database, "select">;

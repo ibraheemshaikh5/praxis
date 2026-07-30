@@ -39,6 +39,15 @@ export async function requireAuthenticatedUserId() {
   return user.id;
 }
 
+export async function getCurrentUser() {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user;
+}
+
 function requireEnvironment(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not configured`);

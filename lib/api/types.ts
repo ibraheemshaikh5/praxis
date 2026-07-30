@@ -1,0 +1,180 @@
+/**
+ * Wire shapes for the planner API. Timestamps arrive as ISO strings because
+ * Drizzle `Date` values are JSON serialized on the way out; `plannerDate`
+ * stays a `YYYY-MM-DD` calendar string.
+ */
+
+export type AttachmentUploadStatus = "pending" | "ready" | "failed";
+
+export type PlannerEntryClosureReason = "moved" | "unscheduled";
+
+export type TaskAttachmentPayload = {
+  id: string;
+  taskId: string;
+  userId: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  uploadStatus: AttachmentUploadStatus;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TaskPayload = {
+  id: string;
+  userId: string;
+  title: string;
+  notes: string | null;
+  completedAt: string | null;
+  deletedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  attachments: TaskAttachmentPayload[];
+};
+
+export type PlannerEntryPayload = {
+  id: string;
+  taskId: string;
+  userId: string;
+  plannerDate: string;
+  position: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  timeZone: string;
+  closedAt: string | null;
+  closureReason: PlannerEntryClosureReason | null;
+  movedFromEntryId: string | null;
+  movedToEntryId: string | null;
+  movedToPlannerDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  task: TaskPayload;
+};
+
+export type PlannerResponse = {
+  entries: PlannerEntryPayload[];
+  inbox: TaskPayload[];
+};
+
+export type BareTaskPayload = Omit<TaskPayload, "attachments">;
+
+export type BarePlannerEntryPayload = Omit<
+  PlannerEntryPayload,
+  "task" | "movedToEntryId" | "movedToPlannerDate"
+>;
+
+export type TaskMutationResponse = {
+  task: BareTaskPayload;
+  entry: BarePlannerEntryPayload | null;
+};
+
+export type CreateTaskBody = {
+  title: string;
+  notes?: string | null;
+  plannerDate?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export type UpdateTaskBody = {
+  title?: string;
+  notes?: string | null;
+  expectedVersion: number;
+};
+
+export type ScheduleTaskBody = {
+  plannerDate: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  position?: number;
+  expectedVersion: number;
+};
+
+export type ReorderPlannerBody = {
+  plannerDate: string;
+  orderedEntryIds: string[];
+};
+
+export type MetricPeriod = "day" | "week" | "month";
+
+export type MetricLinkState = "included" | "excluded";
+
+export type MetricHistoryBucket = {
+  periodStart: string;
+  periodEnd: string;
+  count: number;
+};
+
+export type MetricDayHit = {
+  date: string;
+  hit: boolean;
+};
+
+export type MetricPayload = {
+  id: string;
+  userId: string;
+  name: string;
+  keywords: string[];
+  targetCount: number;
+  period: MetricPeriod;
+  endsOn: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  periodStart: string;
+  periodEnd: string;
+  currentCount: number;
+  history: MetricHistoryBucket[];
+  days: MetricDayHit[];
+};
+
+export type MetricsResponse = {
+  anchor: string;
+  metrics: MetricPayload[];
+};
+
+export type BareMetricPayload = {
+  id: string;
+  userId: string;
+  name: string;
+  keywords: string[];
+  targetCount: number;
+  period: MetricPeriod;
+  endsOn: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateMetricBody = {
+  name: string;
+  keywords: string[];
+  targetCount: number;
+  period: MetricPeriod;
+  endsOn?: string | null;
+};
+
+export type UpdateMetricBody = {
+  name?: string;
+  keywords?: string[];
+  targetCount?: number;
+  period?: MetricPeriod;
+  endsOn?: string | null;
+};
+
+export type SetMetricLinkBody = {
+  metricId: string;
+  state: MetricLinkState | "clear";
+};
+
+export type TaskMetricLinkPayload = {
+  taskId: string;
+  metricId: string;
+  userId: string;
+  state: MetricLinkState;
+  createdAt: string;
+  updatedAt: string;
+};
