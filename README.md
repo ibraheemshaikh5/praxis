@@ -1,9 +1,5 @@
-# Praxis
+# OS for day to day
 
-Praxis is a personal life management application built one vertical slice at a
-time.
-
-The first version will be a web app for computers and phones, beginning with the
-Daily Planner.
+Instead of using notes app, everything I need in one place
 
 See [TODO.md](TODO.md) for the product roadmap.
