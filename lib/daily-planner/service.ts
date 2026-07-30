@@ -709,6 +709,7 @@ export class DailyPlannerService {
         keywords: input.keywords,
         targetCount: input.targetCount,
         period: input.period,
+        endsOn: input.endsOn ?? null,
       })
       .returning();
 
@@ -729,6 +730,7 @@ export class DailyPlannerService {
           ? { targetCount: input.targetCount }
           : {}),
         ...(input.period !== undefined ? { period: input.period } : {}),
+        ...(input.endsOn !== undefined ? { endsOn: input.endsOn } : {}),
       })
       .where(
         and(

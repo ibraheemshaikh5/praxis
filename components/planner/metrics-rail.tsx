@@ -22,6 +22,7 @@ import {
   useUpdateMetric,
 } from "@/hooks/use-metrics";
 import type { MetricPayload, MetricPeriod } from "@/lib/api/types";
+import { formatMonthDay } from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
 
 const PERIOD_COPY: Record<MetricPeriod, string> = {
@@ -82,16 +83,19 @@ function HistorySpark({ history }: { history: MetricPayload["history"] }) {
 
 function MetricCard({
   metric,
+  todayKey,
   onEdit,
   onArchive,
   archiving,
 }: {
   metric: MetricPayload;
+  todayKey: string;
   onEdit: (metric: MetricPayload) => void;
   onArchive: (metricId: string) => void;
   archiving?: boolean;
 }) {
   const [confirmArchive, setConfirmArchive] = React.useState(false);
+  const ended = metric.endsOn ? todayKey > metric.endsOn : false;
 
   return (
     <article className="rounded-2xl border border-border/80 bg-card/60 px-3.5 py-3">
@@ -102,6 +106,14 @@ function MetricCard({
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {PERIOD_COPY[metric.period]}
+            {metric.endsOn ? (
+              <>
+                {" · "}
+                {ended
+                  ? `Ended ${formatMonthDay(metric.endsOn)}`
+                  : `Until ${formatMonthDay(metric.endsOn)}`}
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -259,6 +271,7 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
               metric={metric}
               onArchive={(metricId) => archiveMetric.mutate(metricId)}
               onEdit={openEdit}
+              todayKey={todayKey}
             />
           ))}
         </div>

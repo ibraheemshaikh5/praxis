@@ -117,6 +117,7 @@ export const createMetricSchema = z.object({
   keywords: metricKeywords,
   targetCount: metricTargetCount,
   period: metricPeriod,
+  endsOn: calendarDate.nullable().optional(),
 });
 
 export const updateMetricSchema = z
@@ -125,13 +126,15 @@ export const updateMetricSchema = z
     keywords: metricKeywords.optional(),
     targetCount: metricTargetCount.optional(),
     period: metricPeriod.optional(),
+    endsOn: calendarDate.nullable().optional(),
   })
   .refine(
-    ({ name, keywords, targetCount, period }) =>
+    ({ name, keywords, targetCount, period, endsOn }) =>
       name !== undefined ||
       keywords !== undefined ||
       targetCount !== undefined ||
-      period !== undefined,
+      period !== undefined ||
+      endsOn !== undefined,
     { message: "Provide at least one metric field to update" },
   );
 

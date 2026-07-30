@@ -27,6 +27,7 @@ export type MetricFormValues = {
   keywords: string[];
   targetCount: number;
   period: MetricPeriod;
+  endsOn: string | null;
 };
 
 type FormState = {
@@ -34,6 +35,7 @@ type FormState = {
   keywordsText: string;
   targetCount: string;
   period: MetricPeriod;
+  endDate: string;
 };
 
 type FieldErrors = {
@@ -41,6 +43,7 @@ type FieldErrors = {
   keywords?: string;
   targetCount?: string;
   period?: string;
+  endDate?: string;
 };
 
 const PERIOD_LABELS: Record<MetricPeriod, string> = {
@@ -55,6 +58,7 @@ function emptyForm(): FormState {
     keywordsText: "",
     targetCount: "1",
     period: "week",
+    endDate: "",
   };
 }
 
@@ -64,6 +68,7 @@ function formFromMetric(metric: MetricPayload): FormState {
     keywordsText: metric.keywords.join(", "),
     targetCount: String(metric.targetCount),
     period: metric.period,
+    endDate: metric.endsOn ?? "",
   };
 }
 
@@ -95,6 +100,10 @@ function validate(form: FormState): {
     errors.targetCount = "Enter a whole number of at least 1.";
   }
   if (!form.period) errors.period = "Choose a period.";
+  const endDate = form.endDate.trim();
+  if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    errors.endDate = "Enter a valid date.";
+  }
 
   if (Object.keys(errors).length > 0) return { errors };
 
@@ -105,6 +114,7 @@ function validate(form: FormState): {
       keywords,
       targetCount,
       period: form.period,
+      endsOn: endDate || null,
     },
   };
 }
@@ -198,28 +208,49 @@ function MetricFormFields({
 
       <div className="grid gap-1.5">
         <Label htmlFor="metric-period">Period</Label>
-            <Select
-              items={PERIOD_LABELS}
-              onValueChange={(value) => {
-                if (value === "day" || value === "week" || value === "month") {
-                  setForm((current) => ({ ...current, period: value }));
-                }
-              }}
-              value={form.period}
-            >
-              <SelectTrigger className="w-full" id="metric-period">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PERIOD_LABELS) as MetricPeriod[]).map((period) => (
-                  <SelectItem key={period} value={period}>
-                    {PERIOD_LABELS[period]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <Select
+          items={PERIOD_LABELS}
+          onValueChange={(value) => {
+            if (value === "day" || value === "week" || value === "month") {
+              setForm((current) => ({ ...current, period: value }));
+            }
+          }}
+          value={form.period}
+        >
+          <SelectTrigger className="w-full rounded-xl" id="metric-period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            {(Object.keys(PERIOD_LABELS) as MetricPeriod[]).map((period) => (
+              <SelectItem className="rounded-lg" key={period} value={period}>
+                {PERIOD_LABELS[period]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {errors.period ? (
           <p className="text-xs text-destructive">{errors.period}</p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="metric-end-date">End date</Label>
+        <Input
+          id="metric-end-date"
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              endDate: event.target.value,
+            }))
+          }
+          type="date"
+          value={form.endDate}
+        />
+        <p className="text-xs text-muted-foreground">
+          Optional. How long you want to keep this up consistently.
+        </p>
+        {errors.endDate ? (
+          <p className="text-xs text-destructive">{errors.endDate}</p>
         ) : null}
       </div>
 

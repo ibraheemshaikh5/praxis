@@ -120,6 +120,7 @@ export type MetricPayload = {
   keywords: string[];
   targetCount: number;
   period: MetricPeriod;
+  endsOn: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -142,6 +143,7 @@ export type BareMetricPayload = {
   keywords: string[];
   targetCount: number;
   period: MetricPeriod;
+  endsOn: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -152,6 +154,7 @@ export type CreateMetricBody = {
   keywords: string[];
   targetCount: number;
   period: MetricPeriod;
+  endsOn?: string | null;
 };
 
 export type UpdateMetricBody = {
@@ -159,6 +162,7 @@ export type UpdateMetricBody = {
   keywords?: string[];
   targetCount?: number;
   period?: MetricPeriod;
+  endsOn?: string | null;
 };
 
 export type SetMetricLinkBody = {

@@ -238,11 +238,13 @@ describeDatabase("goal metrics database integration", () => {
     const updated = await service.updateMetric(USER_ONE, metric.id, {
       keywords: ["gym", "lift"],
       targetCount: 3,
+      endsOn: "2026-08-31",
     });
     expect(updated).toMatchObject({
       keywords: ["gym", "lift"],
       targetCount: 3,
       name: "Gym",
+      endsOn: "2026-08-31",
     });
 
     await expect(

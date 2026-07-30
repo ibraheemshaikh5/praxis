@@ -281,6 +281,7 @@ export const metrics = pgTable(
     keywords: text("keywords").array().notNull(),
     targetCount: integer("target_count").notNull(),
     period: metricPeriod("period").notNull(),
+    endsOn: date("ends_on", { mode: "string" }),
     archivedAt: timestamp("archived_at", {
       withTimezone: true,
       mode: "date",
