@@ -137,4 +137,12 @@
     );
     background-size: 18px 18px;
   }
+
+  .planner-wash {
+    background-image: radial-gradient(
+      ellipse at top,
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 55%
+    );
+  }
 }
