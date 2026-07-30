@@ -1,0 +1,1 @@
+ALTER TABLE "task_attachments" ADD CONSTRAINT "task_attachments_storage_path_owner_check" CHECK ("task_attachments"."storage_path" like "task_attachments"."user_id"::text || '/%');

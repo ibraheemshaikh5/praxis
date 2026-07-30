@@ -1,8 +1,12 @@
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres, { type Sql } from "postgres";
 
+import * as schema from "./schema";
+
+export type Database = PostgresJsDatabase<typeof schema>;
+
 type DatabaseClient = {
-  db: PostgresJsDatabase;
+  db: Database;
   sql: Sql;
 };
 
@@ -23,16 +27,12 @@ function createDatabaseClient(): DatabaseClient {
   });
 
   return {
-    db: drizzle(sql),
+    db: drizzle(sql, { schema }),
     sql,
   };
 }
 
 export function getDatabaseClient(): DatabaseClient {
-  if (process.env.NODE_ENV === "production") {
-    return createDatabaseClient();
-  }
-
   globalThis.praxisDatabaseClient ??= createDatabaseClient();
   return globalThis.praxisDatabaseClient;
 }
