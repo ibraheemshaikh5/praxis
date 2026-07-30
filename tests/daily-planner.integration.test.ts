@@ -233,6 +233,52 @@ describeDatabase("daily planner database integration", () => {
       expect(otherView.count).toBe(0);
     });
   });
+
+  it("requires an owned attachment reservation for storage uploads", async () => {
+    const { task } = await service.createTask(USER_ONE, {
+      title: "Reserved upload",
+    });
+    const attachment = await service.reserveAttachment(USER_ONE, task.id, {
+      fileName: "evidence.pdf",
+      mimeType: "application/pdf",
+      byteSize: 256,
+    });
+    const orphanPath = `${USER_ONE}/${task.id}/orphan`;
+
+    await expect(
+      client.begin(async (transaction) => {
+        await transaction.unsafe("set local role authenticated");
+        await transaction`
+          select set_config('request.jwt.claim.sub', ${USER_ONE}, true)
+        `;
+        await transaction`
+          insert into storage.objects (bucket_id, name)
+          values ('task-attachments', ${orphanPath})
+        `;
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    await expect(
+      client.begin(async (transaction) => {
+        await transaction.unsafe("set local role authenticated");
+        await transaction`
+          select set_config('request.jwt.claim.sub', ${USER_ONE}, true)
+        `;
+        await transaction`
+          insert into storage.objects (bucket_id, name)
+          values ('task-attachments', ${attachment.storagePath})
+        `;
+        const [stored] = await transaction<[{ count: number }]>`
+          select count(*)::integer as count
+          from storage.objects
+          where bucket_id = 'task-attachments'
+            and name = ${attachment.storagePath}
+        `;
+        expect(stored.count).toBe(1);
+        throw new Error("ROLLBACK_STORAGE_TEST");
+      }),
+    ).rejects.toThrow("ROLLBACK_STORAGE_TEST");
+  });
 });
 
 class FakeAttachmentStorage implements AttachmentStorage {

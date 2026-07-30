@@ -194,6 +194,14 @@ create policy task_attachments_objects_insert_own
   with check (
     bucket_id = 'task-attachments'
     and (storage.foldername(name))[1] = (select auth.uid()::text)
+    and exists (
+      select 1
+      from public.task_attachments
+      where task_attachments.user_id = (select auth.uid())
+        and task_attachments.storage_path = name
+        and task_attachments.deleted_at is null
+        and task_attachments.upload_status in ('pending', 'failed')
+    )
   );
 
 create policy task_attachments_objects_update_own
@@ -207,4 +215,12 @@ create policy task_attachments_objects_update_own
   with check (
     bucket_id = 'task-attachments'
     and (storage.foldername(name))[1] = (select auth.uid()::text)
+    and exists (
+      select 1
+      from public.task_attachments
+      where task_attachments.user_id = (select auth.uid())
+        and task_attachments.storage_path = name
+        and task_attachments.deleted_at is null
+        and task_attachments.upload_status in ('pending', 'failed')
+    )
   );
