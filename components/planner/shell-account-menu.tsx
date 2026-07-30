@@ -5,10 +5,16 @@ import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-function accountInitial(email: string | null) {
-  if (!email) return "?";
+function accountLocalPart(email: string | null) {
+  if (!email) return "Signed in";
   const local = email.split("@")[0]?.trim();
-  const letter = local?.[0];
+  return local || "Signed in";
+}
+
+function accountInitial(email: string | null) {
+  const local = accountLocalPart(email);
+  if (local === "Signed in") return "?";
+  const letter = local[0];
   return letter ? letter.toUpperCase() : "?";
 }
 
@@ -44,7 +50,7 @@ export function ShellAccountPanel({
   onSignOut: () => void;
   themeControl: ReactNode;
 }) {
-  const label = userEmail ?? "Signed in";
+  const displayName = accountLocalPart(userEmail);
 
   return (
     <div className="rounded-2xl border border-sidebar-border bg-card/70 p-3">
@@ -59,9 +65,9 @@ export function ShellAccountPanel({
           <p className="text-xs text-muted-foreground">Signed in as</p>
           <p
             className="truncate text-sm font-medium text-foreground"
-            title={label}
+            title={userEmail ?? undefined}
           >
-            {label}
+            {displayName}
           </p>
         </div>
       </div>
