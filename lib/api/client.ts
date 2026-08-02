@@ -13,6 +13,7 @@ import type {
   ReorderPlannerBody,
   ScheduleTaskBody,
   SetMetricLinkBody,
+  SpreadsheetTabsResponse,
   TaskMetricLinkPayload,
   TaskMutationResponse,
   UpdateApplicationBody,
@@ -230,6 +231,10 @@ export function importApplications(cycle?: string) {
     method: "POST",
     body: JSON.stringify(cycle ? { cycle } : {}),
   });
+}
+
+export function fetchSpreadsheetTabs() {
+  return request<SpreadsheetTabsResponse>("/api/google/sheets");
 }
 
 export function fetchGoogleConnection() {

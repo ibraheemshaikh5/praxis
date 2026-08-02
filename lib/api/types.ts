@@ -250,4 +250,10 @@ export type GoogleConnectionResponse = {
 export type ImportApplicationsResponse = {
   cycle: string;
   imported: number;
+  /** Sheet rows that were missing a number and had one filled in. */
+  repaired: number;
+};
+
+export type SpreadsheetTabsResponse = {
+  tabs: string[];
 };

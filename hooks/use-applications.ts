@@ -14,6 +14,7 @@ import {
   disconnectGoogle,
   fetchApplications,
   fetchGoogleConnection,
+  fetchSpreadsheetTabs,
   importApplications,
   syncApplication,
   updateApplication,
@@ -29,6 +30,7 @@ export const applicationsKeys = {
   all: ["applications"] as const,
   list: (cycle: string) => ["applications", "list", cycle] as const,
   connection: ["applications", "google-connection"] as const,
+  tabs: ["applications", "spreadsheet-tabs"] as const,
 };
 
 function reportError(error: unknown, fallback: string) {
@@ -79,6 +81,15 @@ export function useGoogleConnection() {
     queryKey: applicationsKeys.connection,
     queryFn: () => fetchGoogleConnection(),
     staleTime: 60_000,
+  });
+}
+
+export function useSpreadsheetTabs(enabled: boolean) {
+  return useQuery({
+    queryKey: applicationsKeys.tabs,
+    queryFn: () => fetchSpreadsheetTabs(),
+    staleTime: 300_000,
+    enabled,
   });
 }
 
@@ -162,12 +173,18 @@ export function useImportApplications() {
 
   return useMutation({
     mutationFn: (cycle: string) => importApplications(cycle),
-    onSuccess: (result) =>
+    onSuccess: (result) => {
+      if (result.imported === 0) {
+        toast.success(`No rows found in ${result.cycle}.`);
+        return;
+      }
+      const repaired = result.repaired
+        ? ` Numbered ${result.repaired} row${result.repaired === 1 ? "" : "s"} that were missing a #.`
+        : "";
       toast.success(
-        result.imported === 0
-          ? `No rows found in ${result.cycle}.`
-          : `Imported ${result.imported} row${result.imported === 1 ? "" : "s"} from ${result.cycle}.`,
-      ),
+        `Imported ${result.imported} row${result.imported === 1 ? "" : "s"} from ${result.cycle}.${repaired}`,
+      );
+    },
     onError: (error) => reportError(error, "Could not read the spreadsheet."),
     onSettled: () => invalidateApplications(client),
   });

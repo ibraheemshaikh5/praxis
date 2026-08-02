@@ -84,8 +84,8 @@ export const applications = pgTable(
       foreignColumns: [profiles.id],
     }).onDelete("cascade"),
     check(
-      "applications_cycle_format_check",
-      sql`${table.cycle} ~ '^[A-Za-z]{1,3}[0-9]{2}$'`,
+      "applications_cycle_length_check",
+      sql`length(trim(${table.cycle})) between 1 and 100`,
     ),
     check(
       "applications_number_positive_check",

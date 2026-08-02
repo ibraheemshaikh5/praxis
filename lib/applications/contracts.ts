@@ -14,13 +14,9 @@ const calendarDate = z
 
 const expectedVersion = z.number().int().positive();
 
-// Matches applications_cycle_format_check: a season letter plus a two-digit
-// year, e.g. S27 for the Summer 2027 recruiting cycle.
-const cycle = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[A-Z]{1,3}[0-9]{2}$/, "Expected a cycle like S27");
+// The cycle names a spreadsheet tab verbatim, so it keeps the tab's own casing
+// and punctuation ("F25/W26 Internship" is a real one).
+const cycle = z.string().trim().min(1).max(100);
 
 const company = z.string().trim().min(1).max(200);
 const title = z.string().trim().min(1).max(200);
