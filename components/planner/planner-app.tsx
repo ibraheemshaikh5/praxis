@@ -6,8 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DayTimeline } from "@/components/planner/day-timeline";
 import { TodayButton } from "@/components/planner/jump-to-today";
 import { MetricsRail } from "@/components/planner/metrics-rail";
-import { PlannerShell } from "@/components/planner/planner-shell";
 import { TimelineNavProvider } from "@/components/planner/timeline-nav";
+import { AppShell } from "@/components/shell/app-shell";
 import {
   useCreateTask,
   useDeleteTask,
@@ -151,10 +151,11 @@ export function PlannerApp({
   return (
     <MetricsAnchorProvider anchor={todayKey}>
       <TimelineNavProvider>
-        <PlannerShell
+        <AppShell
           headerAction={<TodayButton />}
           onSignOut={() => void signOut()}
           rail={<MetricsRail todayKey={todayKey} />}
+          title="Daily planner"
           userEmail={userEmail}
         >
           <DayTimeline
@@ -170,7 +171,7 @@ export function PlannerApp({
             todayKey={todayKey}
             timeZone={timeZone}
           />
-        </PlannerShell>
+        </AppShell>
       </TimelineNavProvider>
     </MetricsAnchorProvider>
   );

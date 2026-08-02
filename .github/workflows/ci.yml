@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The migration check below needs main to compare against.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm test:unit
+
+      # Boots a real Supabase stack, applying every migration from scratch.
+      - name: Start Supabase
+        run: pnpm exec supabase start
+
+      # A migration can apply cleanly to an empty database and still fail on one
+      # that already holds rows, which is the only path production ever takes.
+      # Rebuild at main's migrations, then apply this branch's on top of them.
+      - name: Verify migrations apply on top of main
+        run: |
+          rm -rf supabase/migrations
+          git checkout origin/main -- supabase/migrations
+          pnpm exec supabase db reset --local
+          git checkout HEAD -- supabase/migrations
+          pnpm exec supabase migration up --local
+
+      - name: Integration tests
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: pnpm test:integration

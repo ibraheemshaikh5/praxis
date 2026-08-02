@@ -114,7 +114,7 @@ export function DraftTaskRow({
           onCancel={cancel}
           onChange={setTitle}
           onEnter={() => finish(true)}
-          placeholder="What needs your attention?"
+          placeholder="Task"
           value={title}
           variant="title"
         />

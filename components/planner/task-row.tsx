@@ -65,8 +65,11 @@ export function TaskRow({
 
   // Sync from server only while unfocused so a refetch never yanks the caret.
   /* eslint-disable react-hooks/set-state-in-effect -- Server refetches update the editable draft only while it is not focused. */
+  // Deliberately an effect: the alternative is adjusting state during render,
+  // which would need its own previous-value bookkeeping for no behavioural gain.
   React.useEffect(() => {
     if (focused) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTitle(entry.task.title);
     setNotes(entry.task.notes ?? "");
     setEditingNotes(Boolean(entry.task.notes));

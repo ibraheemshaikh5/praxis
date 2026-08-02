@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -178,9 +177,7 @@ function MetricFormFields({
           placeholder="gym, workout"
           value={form.keywordsText}
         />
-        <p className="text-xs text-muted-foreground">
-          Comma-separated. Matching is fuzzy and case-insensitive.
-        </p>
+        <p className="text-xs text-muted-foreground">Comma-separated.</p>
         {errors.keywords ? (
           <p className="text-xs text-destructive">{errors.keywords}</p>
         ) : null}
@@ -246,9 +243,7 @@ function MetricFormFields({
           type="date"
           value={form.endDate}
         />
-        <p className="text-xs text-muted-foreground">
-          Optional. How long you want to keep this up consistently.
-        </p>
+        <p className="text-xs text-muted-foreground">Optional.</p>
         {errors.endDate ? (
           <p className="text-xs text-destructive">{errors.endDate}</p>
         ) : null}
@@ -286,9 +281,6 @@ export function MetricFormDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit goal" : "Add goal"}</DialogTitle>
-          <DialogDescription>
-            Track how often matching tasks are completed in a period.
-          </DialogDescription>
         </DialogHeader>
 
         {open ? (

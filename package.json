@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,8 +12,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run --exclude tests/daily-planner.integration.test.ts",
-    "test:integration": "node scripts/require-test-database.mjs && vitest run tests/daily-planner.integration.test.ts",
+    "test:unit": "vitest run --exclude \"tests/*.integration.test.ts\"",
+    "test:integration": "node scripts/require-test-database.mjs && vitest run tests/applications.integration.test.ts tests/daily-planner.integration.test.ts tests/metrics.integration.test.ts",
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
