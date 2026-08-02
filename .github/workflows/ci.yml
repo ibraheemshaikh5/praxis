@@ -25,6 +25,11 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # Two migrations sharing a version prefix apply cleanly here and still
+      # skip one of the two forever, so catch the collision before anything runs.
+      - name: Check migration versions
+        run: node scripts/check-migration-versions.mjs
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
