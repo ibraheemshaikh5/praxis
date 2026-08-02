@@ -85,8 +85,9 @@ Files live in the private `task-attachments` Supabase Storage bucket.
 
 Decisions:
 
-- A recruiting cycle is a plain string (`S27`) that also names the spreadsheet
-  tab, so a new cycle needs no code change.
+- A recruiting cycle is a plain string that names a spreadsheet tab verbatim, so
+  a new cycle needs no code change. It is not constrained to a season code: the
+  owner's tabs include `F25/W26 Internship` and `YC Automator Batch 1`.
 - `application_number` reproduces the sheet's `#` column and is unique within
   `(user, cycle)`. It is assigned by the server, never by the client.
 - Postgres is the source of truth; the spreadsheet is a mirror kept current on
