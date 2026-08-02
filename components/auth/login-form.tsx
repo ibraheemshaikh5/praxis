@@ -64,7 +64,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-[22rem]">
+    <div className="mx-auto w-full max-w-[22rem]">
       <div className="rounded-2xl border border-border bg-card/90 p-6 shadow-sm sm:p-8">
         <div className="flex items-center gap-3">
           <div className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
