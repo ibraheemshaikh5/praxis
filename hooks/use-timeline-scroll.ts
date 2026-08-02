@@ -9,15 +9,22 @@ import type { PlannerDateKey } from "@/lib/planner/dates";
  * performs the one-time instant jump to today after the first page settles.
  */
 export function useTimelineScroll({
+  getTodayScrollTop,
   loadedToday,
   onExtendEarlier,
   onExtendLater,
+  onVisibleDate,
   pageIndices,
   todayKey,
 }: {
+  getTodayScrollTop?: (
+    container: HTMLDivElement,
+    today: HTMLElement,
+  ) => number;
   loadedToday: boolean;
   onExtendEarlier: () => boolean;
   onExtendLater: () => void;
+  onVisibleDate?: (date: PlannerDateKey) => void;
   pageIndices: number[];
   todayKey: PlannerDateKey;
 }) {
@@ -77,9 +84,11 @@ export function useTimelineScroll({
     const todayEl = todaySectionRef.current;
     if (!container || !todayEl) return;
 
-    container.scrollTop = todayEl.offsetTop;
+    container.scrollTop = getTodayScrollTop
+      ? getTodayScrollTop(container, todayEl)
+      : todayEl.offsetTop;
     isAnchoredRef.current = true;
-  }, [loadedToday]);
+  }, [getTodayScrollTop, loadedToday]);
 
   const captureRestorePoint = React.useCallback(() => {
     const container = scrollRef.current;
@@ -177,6 +186,42 @@ export function useTimelineScroll({
     return () => observer.disconnect();
   }, [todayKey, loadedToday]);
 
+  React.useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !onVisibleDate) return;
+    let frame = 0;
+
+    const publishVisibleDate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (!isAnchoredRef.current) return;
+        const containerTop = container.getBoundingClientRect().top;
+        const probe = containerTop + Math.min(96, container.clientHeight / 4);
+        const days = container.querySelectorAll<HTMLElement>("[data-day]");
+        let visible: HTMLElement | null = null;
+
+        for (const day of days) {
+          const rect = day.getBoundingClientRect();
+          if (rect.top <= probe && rect.bottom > probe) {
+            visible = day;
+            break;
+          }
+          if (!visible && rect.bottom > probe) visible = day;
+        }
+
+        const date = visible?.dataset.day;
+        if (date) onVisibleDate(date);
+      });
+    };
+
+    publishVisibleDate();
+    container.addEventListener("scroll", publishVisibleDate, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      container.removeEventListener("scroll", publishVisibleDate);
+    };
+  }, [onVisibleDate, pageIndices]);
+
   const jumpToToday = React.useCallback(() => {
     const container = scrollRef.current;
     const todayEl = todaySectionRef.current;
@@ -186,16 +231,20 @@ export function useTimelineScroll({
       "(prefers-reduced-motion: reduce)",
     ).matches;
 
+    const top = getTodayScrollTop
+      ? getTodayScrollTop(container, todayEl)
+      : todayEl.offsetTop;
+
     if (reduceMotion) {
-      container.scrollTop = todayEl.offsetTop;
+      container.scrollTop = top;
       return;
     }
 
     container.scrollTo({
-      top: todayEl.offsetTop,
+      top,
       behavior: "smooth",
     });
-  }, []);
+  }, [getTodayScrollTop]);
 
   return {
     bottomSentinelRef,

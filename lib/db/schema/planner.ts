@@ -16,6 +16,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import {
+  DEFAULT_TASK_COLOR,
+  DEFAULT_TASK_ICON,
+} from "@/lib/daily-planner/appearance";
+
 const timestamps = {
   createdAt: timestamp("created_at", {
     withTimezone: true,
@@ -74,6 +79,8 @@ export const tasks = pgTable(
       sql`lower(regexp_replace(title, '[^a-zA-Z0-9 ]', '', 'g'))`,
     ),
     notes: text("notes"),
+    iconKey: text("icon_key").default(DEFAULT_TASK_ICON).notNull(),
+    colorKey: text("color_key").default(DEFAULT_TASK_COLOR).notNull(),
     completedAt: timestamp("completed_at", {
       withTimezone: true,
       mode: "date",
@@ -99,6 +106,14 @@ export const tasks = pgTable(
     check(
       "tasks_notes_length_check",
       sql`${table.notes} is null or length(${table.notes}) <= 50000`,
+    ),
+    check(
+      "tasks_icon_key_check",
+      sql`${table.iconKey} in ('check', 'briefcase', 'book', 'dumbbell', 'heart', 'leaf', 'utensils', 'sparkles')`,
+    ),
+    check(
+      "tasks_color_key_check",
+      sql`${table.colorKey} in ('olive', 'sage', 'apricot', 'rose', 'sky', 'ink')`,
     ),
     check("tasks_version_positive_check", sql`${table.version} > 0`),
     index("tasks_user_state_idx").on(

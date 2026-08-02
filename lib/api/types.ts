@@ -27,6 +27,8 @@ export type TaskPayload = {
   userId: string;
   title: string;
   notes: string | null;
+  iconKey: import("@/lib/daily-planner/appearance").TaskIconKey;
+  colorKey: import("@/lib/daily-planner/appearance").TaskColorKey;
   completedAt: string | null;
   deletedAt: string | null;
   version: number;
@@ -74,6 +76,8 @@ export type TaskMutationResponse = {
 export type CreateTaskBody = {
   title: string;
   notes?: string | null;
+  iconKey?: import("@/lib/daily-planner/appearance").TaskIconKey;
+  colorKey?: import("@/lib/daily-planner/appearance").TaskColorKey;
   plannerDate?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
@@ -82,6 +86,8 @@ export type CreateTaskBody = {
 export type UpdateTaskBody = {
   title?: string;
   notes?: string | null;
+  iconKey?: import("@/lib/daily-planner/appearance").TaskIconKey;
+  colorKey?: import("@/lib/daily-planner/appearance").TaskColorKey;
   expectedVersion: number;
 };
 

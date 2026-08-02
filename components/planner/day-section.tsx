@@ -24,17 +24,28 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlannerEntryPayload } from "@/lib/api/types";
+import type { TaskColorKey, TaskIconKey } from "@/lib/daily-planner/appearance";
 import {
+  addPlannerDaysToKey,
   formatMonthDay,
   formatWeekday,
   type PlannerDateKey,
 } from "@/lib/planner/dates";
+import {
+  MINUTES_PER_DAY,
+  minutesInTimeZone,
+  resolveAutoPlacement,
+  zonedDateTimeToIso,
+} from "@/lib/planner/timeline";
 import { cn } from "@/lib/utils";
 
 type PendingCreate = {
   id: string;
   title: string;
   notes: string | null;
+  iconKey: TaskIconKey;
+  colorKey: TaskColorKey;
+  timeLabel: string | null;
 };
 
 export function DaySection({
@@ -49,7 +60,12 @@ export function DaySection({
   onToggle,
   onUpdate,
   schedulePendingTaskId,
+  schedulingEntries = entries,
   sectionRef,
+  timeZone,
+  timeline,
+  onScheduleAtTime,
+  mode = "list",
 }: {
   dateKey: PlannerDateKey;
   entries: PlannerEntryPayload[];
@@ -59,6 +75,10 @@ export function DaySection({
     dateKey: PlannerDateKey;
     title: string;
     notes: string | null;
+    iconKey: TaskIconKey;
+    colorKey: TaskColorKey;
+    startsAt?: string | null;
+    endsAt?: string | null;
   }) => Promise<void>;
   onDelete: (entry: PlannerEntryPayload) => void;
   onReorder: (input: {
@@ -69,6 +89,12 @@ export function DaySection({
     entry: PlannerEntryPayload;
     plannerDate: PlannerDateKey;
   }) => void;
+  onScheduleAtTime?: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+    start: number;
+    duration: number;
+  }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
     entry: PlannerEntryPayload;
@@ -76,7 +102,11 @@ export function DaySection({
     notes?: string | null;
   }) => void;
   schedulePendingTaskId?: string | null;
+  schedulingEntries?: PlannerEntryPayload[];
   sectionRef?: React.Ref<HTMLElement>;
+  timeZone: string;
+  timeline?: React.ReactNode;
+  mode?: "list" | "calendar";
 }) {
   const [draftOpen, setDraftOpen] = React.useState(false);
   const [draftKey, setDraftKey] = React.useState(0);
@@ -112,12 +142,72 @@ export function DaySection({
   async function handleDraftCommit(input: {
     title: string;
     notes: string | null;
+    iconKey: TaskIconKey;
+    colorKey: TaskColorKey;
+    startMinutes: number | null;
+    duration: number;
+    scheduleNext: boolean;
     continueDraft: boolean;
   }) {
+    let targetDate = dateKey;
+    let startMinutes = input.startMinutes;
+
+    if (input.scheduleNext) {
+      const latestEnd = schedulingEntries.reduce<number | null>(
+        (latest, entry) => {
+          if (!entry.startsAt) return latest;
+          const start = minutesInTimeZone(entry.startsAt, entry.timeZone);
+          const end = entry.endsAt
+            ? minutesInTimeZone(entry.endsAt, entry.timeZone)
+            : start + 30;
+          const normalizedEnd = end > start ? end : start + 30;
+          return latest === null ? normalizedEnd : Math.max(latest, normalizedEnd);
+        },
+        null,
+      );
+      const placement = resolveAutoPlacement({
+        duration: input.duration,
+        isToday,
+        latestEnd,
+        nowMinutes: minutesInTimeZone(new Date().toISOString(), timeZone),
+      });
+      targetDate = addPlannerDaysToKey(dateKey, placement.dayOffset);
+      startMinutes = placement.start;
+    }
+
+    if (
+      startMinutes !== null &&
+      startMinutes + input.duration > MINUTES_PER_DAY
+    ) {
+      startMinutes = Math.max(0, MINUTES_PER_DAY - input.duration);
+    }
+
+    const startsAt =
+      startMinutes === null
+        ? null
+        : zonedDateTimeToIso(targetDate, startMinutes, timeZone);
+    const endsAt =
+      startMinutes === null
+        ? null
+        : zonedDateTimeToIso(
+            targetDate,
+            startMinutes + input.duration,
+            timeZone,
+          );
     const pendingId = crypto.randomUUID();
     setPendingCreates((current) => [
       ...current,
-      { id: pendingId, title: input.title, notes: input.notes },
+      {
+        id: pendingId,
+        title: input.title,
+        notes: input.notes,
+        iconKey: input.iconKey,
+        colorKey: input.colorKey,
+        timeLabel:
+          startMinutes === null
+            ? null
+            : `${String(Math.floor(startMinutes / 60) % 12 || 12)}:${String(startMinutes % 60).padStart(2, "0")} ${startMinutes >= 720 ? "PM" : "AM"}`,
+      },
     ]);
 
     if (input.continueDraft) {
@@ -128,9 +218,13 @@ export function DaySection({
 
     try {
       await onCreate({
-        dateKey,
+        dateKey: targetDate,
         title: input.title,
         notes: input.notes,
+        iconKey: input.iconKey,
+        colorKey: input.colorKey,
+        startsAt,
+        endsAt,
       });
     } finally {
       setPendingCreates((current) =>
@@ -142,15 +236,19 @@ export function DaySection({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-(--planner-pane) snap-start snap-always flex-col border-t border-border/60 py-5"
+      className={cn(
+        "flex flex-col border-t border-border/60 py-5",
+        mode === "list" &&
+          "min-h-full snap-start snap-always first:border-t-0",
+        mode === "calendar" && "first:border-t-0",
+      )}
       data-day={dateKey}
       id={`day-${dateKey}`}
       ref={sectionRef}
     >
       <div
         className={cn(
-          "sticky top-0 z-10 -mx-1 flex items-baseline justify-between gap-4 px-1 py-2",
-          "bg-background/90 backdrop-blur-md",
+          "sticky top-0 z-20 -mx-1 flex items-baseline justify-between gap-4 bg-background/90 px-1 py-2 backdrop-blur-md",
           isToday && "border-b border-primary/25",
         )}
       >
@@ -201,6 +299,7 @@ export function DaySection({
                   key={entry.id}
                   onDelete={onDelete}
                   onSchedule={onSchedule}
+                  onScheduleAtTime={onScheduleAtTime}
                   onToggle={onToggle}
                   onUpdate={onUpdate}
                   schedulePending={schedulePendingTaskId === entry.taskId}
@@ -211,7 +310,12 @@ export function DaySection({
         )}
 
         {pendingCreates.map((item) => (
-          <PendingTaskRow key={item.id} notes={item.notes} title={item.title} />
+          <PendingTaskRow
+            key={item.id}
+            notes={item.notes}
+            timeLabel={item.timeLabel}
+            title={item.title}
+          />
         ))}
 
         {draftOpen ? (
@@ -238,6 +342,8 @@ export function DaySection({
           </Button>
         </div>
       ) : null}
+
+      {timeline}
     </section>
   );
 }
@@ -245,9 +351,11 @@ export function DaySection({
 function PendingTaskRow({
   title,
   notes,
+  timeLabel,
 }: {
   title: string;
   notes: string | null;
+  timeLabel: string | null;
 }) {
   return (
     <article
@@ -263,9 +371,16 @@ function PendingTaskRow({
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="text-[15px] font-medium leading-5">{title}</p>
         {notes ? (
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">{notes}</p>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            {notes}
+          </p>
         ) : null}
       </div>
+      {timeLabel ? (
+        <span className="shrink-0 pt-1 font-mono text-xs tabular-nums text-muted-foreground">
+          {timeLabel}
+        </span>
+      ) : null}
     </article>
   );
 }

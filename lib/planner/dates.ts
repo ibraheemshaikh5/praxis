@@ -150,5 +150,5 @@ export function formatTimeBlock(
   const start = formatter.format(new Date(startsAt));
   if (!endsAt) return start;
 
-  return `${start} to ${formatter.format(new Date(endsAt))}`;
+  return `${start} – ${formatter.format(new Date(endsAt))}`;
 }

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  TASK_COLOR_KEYS,
+  TASK_ICON_KEYS,
+} from "@/lib/daily-planner/appearance";
+
 const calendarDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD calendar date")
@@ -12,6 +17,8 @@ const calendarDate = z
 
 const timestampWithOffset = z.string().datetime({ offset: true });
 const expectedVersion = z.number().int().positive();
+const taskIconKey = z.enum(TASK_ICON_KEYS);
+const taskColorKey = z.enum(TASK_COLOR_KEYS);
 
 const metricName = z.string().trim().min(1).max(120);
 const metricKeywords = z
@@ -45,6 +52,8 @@ export const createTaskSchema = z
   .object({
     title: z.string().trim().min(1).max(500),
     notes: z.string().max(50_000).nullable().optional(),
+    iconKey: taskIconKey.optional(),
+    colorKey: taskColorKey.optional(),
     plannerDate: calendarDate.nullable().optional(),
     startsAt: timestampWithOffset.nullable().optional(),
     endsAt: timestampWithOffset.nullable().optional(),
@@ -55,11 +64,18 @@ export const updateTaskSchema = z
   .object({
     title: z.string().trim().min(1).max(500).optional(),
     notes: z.string().max(50_000).nullable().optional(),
+    iconKey: taskIconKey.optional(),
+    colorKey: taskColorKey.optional(),
     expectedVersion,
   })
-  .refine(({ title, notes }) => title !== undefined || notes !== undefined, {
-    message: "Provide at least one task field to update",
-  });
+  .refine(
+    ({ title, notes, iconKey, colorKey }) =>
+      title !== undefined ||
+      notes !== undefined ||
+      iconKey !== undefined ||
+      colorKey !== undefined,
+    { message: "Provide at least one task field to update" },
+  );
 
 export const completionSchema = z.object({
   completed: z.boolean(),

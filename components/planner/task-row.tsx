@@ -3,11 +3,12 @@
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock, GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 
 import { EditableText } from "@/components/planner/editable-text";
 import { TaskDateMenu } from "@/components/planner/task-date-menu";
 import { TaskMetricMenu } from "@/components/planner/task-metric-menu";
+import { TaskTimeMenu } from "@/components/planner/task-time-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PlannerEntryPayload } from "@/lib/api/types";
@@ -18,6 +19,7 @@ export function TaskRow({
   entry,
   onDelete,
   onSchedule,
+  onScheduleAtTime,
   onToggle,
   onUpdate,
   pending,
@@ -28,6 +30,12 @@ export function TaskRow({
   onSchedule: (input: {
     entry: PlannerEntryPayload;
     plannerDate: PlannerDateKey;
+  }) => void;
+  onScheduleAtTime?: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+    start: number;
+    duration: number;
   }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
@@ -56,6 +64,7 @@ export function TaskRow({
   const skipCommitRef = React.useRef(false);
 
   // Sync from server only while unfocused so a refetch never yanks the caret.
+  /* eslint-disable react-hooks/set-state-in-effect -- Server refetches update the editable draft only while it is not focused. */
   // Deliberately an effect: the alternative is adjusting state during render,
   // which would need its own previous-value bookkeeping for no behavioural gain.
   React.useEffect(() => {
@@ -65,6 +74,7 @@ export function TaskRow({
     setNotes(entry.task.notes ?? "");
     setEditingNotes(Boolean(entry.task.notes));
   }, [entry.task.title, entry.task.notes, focused]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const {
     attributes,
@@ -212,15 +222,22 @@ export function TaskRow({
             </button>
           )}
 
-          {timeBlock ? (
-            <p className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-              <Clock className="size-3" />
-              {timeBlock}
-            </p>
-          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {timeBlock ? (
+            <span className="mr-1 max-w-24 shrink-0 truncate font-mono text-[11px] tabular-nums text-muted-foreground sm:max-w-40 sm:text-xs">
+              {timeBlock}
+            </span>
+          ) : null}
+          {onScheduleAtTime ? (
+            <TaskTimeMenu
+              entry={entry}
+              onSchedule={onSchedule}
+              onScheduleAtTime={onScheduleAtTime}
+              pending={schedulePending}
+            />
+          ) : null}
           <TaskDateMenu
             entry={entry}
             onSchedule={onSchedule}
