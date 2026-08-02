@@ -119,7 +119,6 @@ export function SheetToolbar({
         onClick={onImport}
         size="sm"
         variant="ghost"
-        title={`Pull the ${cycle} tab into Praxis`}
       >
         <RefreshCw
           className={cn(importing && "animate-spin motion-reduce:animate-none")}

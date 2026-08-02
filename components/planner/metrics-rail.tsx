@@ -250,9 +250,7 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
 
       {!isLoading && !isError && metrics.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border px-3.5 py-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            No goals yet. Add one to track completions.
-          </p>
+          <p className="text-sm text-muted-foreground">No goals yet.</p>
           <Button className="mt-3" onClick={openCreate} size="sm">
             Add metric
           </Button>

@@ -17,7 +17,6 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Praxis",
-  description: "A calm daily planner for the work that matters.",
 };
 
 export default function RootLayout({

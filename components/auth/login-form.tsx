@@ -79,11 +79,6 @@ export function LoginForm() {
         <h1 className="mt-7 text-2xl font-semibold tracking-[-0.03em]">
           {signingIn ? "Sign in" : "Create your account"}
         </h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {signingIn
-            ? "Open your planner and pick up where you left off."
-            : "Save your days to one account."}
-        </p>
 
         <form className="mt-7" noValidate onSubmit={onSubmit}>
           <div className="space-y-2">
