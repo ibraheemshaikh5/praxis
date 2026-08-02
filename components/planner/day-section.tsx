@@ -240,7 +240,7 @@ export function DaySection({
         "flex flex-col border-t border-border/60 py-5",
         mode === "list" &&
           "min-h-full snap-start snap-always first:border-t-0",
-        mode === "calendar" && "first:border-t-0",
+        mode === "calendar" && "gap-0 py-3 first:border-t-0 first:pt-2",
       )}
       data-day={dateKey}
       id={`day-${dateKey}`}
@@ -268,7 +268,8 @@ export function DaySection({
             {formatMonthDay(dateKey)}
           </span>
         </h2>
-        {entries.length > 0 || pendingCreates.length > 0 ? (
+        {mode === "list" &&
+        (entries.length > 0 || pendingCreates.length > 0) ? (
           <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
             {remaining > 0 || pendingCreates.length > 0
               ? `${remaining + pendingCreates.length} left`
@@ -277,70 +278,74 @@ export function DaySection({
         ) : null}
       </div>
 
-      <div className="mt-1 space-y-0.5">
-        {loading ? (
-          <div aria-label="Loading tasks" role="status">
-            <Skeleton className="h-10 rounded-xl" />
-            <span className="sr-only">Loading tasks</span>
+      {mode === "list" ? (
+        <>
+          <div className="mt-1 space-y-0.5">
+            {loading ? (
+              <div aria-label="Loading tasks" role="status">
+                <Skeleton className="h-10 rounded-xl" />
+                <span className="sr-only">Loading tasks</span>
+              </div>
+            ) : (
+              <DndContext
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+                sensors={sensors}
+              >
+                <SortableContext
+                  items={entryIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {entries.map((entry) => (
+                    <TaskRow
+                      entry={entry}
+                      key={entry.id}
+                      onDelete={onDelete}
+                      onSchedule={onSchedule}
+                      onScheduleAtTime={onScheduleAtTime}
+                      onToggle={onToggle}
+                      onUpdate={onUpdate}
+                      schedulePending={schedulePendingTaskId === entry.taskId}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {pendingCreates.map((item) => (
+              <PendingTaskRow
+                key={item.id}
+                notes={item.notes}
+                timeLabel={item.timeLabel}
+                title={item.title}
+              />
+            ))}
+
+            {draftOpen ? (
+              <DraftTaskRow
+                key={draftKey}
+                onCommit={handleDraftCommit}
+                onDiscard={() => setDraftOpen(false)}
+              />
+            ) : null}
           </div>
-        ) : (
-          <DndContext
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-            sensors={sensors}
-          >
-            <SortableContext
-              items={entryIds}
-              strategy={verticalListSortingStrategy}
-            >
-              {entries.map((entry) => (
-                <TaskRow
-                  entry={entry}
-                  key={entry.id}
-                  onDelete={onDelete}
-                  onSchedule={onSchedule}
-                  onScheduleAtTime={onScheduleAtTime}
-                  onToggle={onToggle}
-                  onUpdate={onUpdate}
-                  schedulePending={schedulePendingTaskId === entry.taskId}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
 
-        {pendingCreates.map((item) => (
-          <PendingTaskRow
-            key={item.id}
-            notes={item.notes}
-            timeLabel={item.timeLabel}
-            title={item.title}
-          />
-        ))}
-
-        {draftOpen ? (
-          <DraftTaskRow
-            key={draftKey}
-            onCommit={handleDraftCommit}
-            onDiscard={() => setDraftOpen(false)}
-          />
-        ) : null}
-      </div>
-
-      {!draftOpen ? (
-        <div className="mt-2">
-          <Button
-            className="w-full justify-start rounded-xl border-dashed text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setDraftKey((key) => key + 1);
-              setDraftOpen(true);
-            }}
-            variant="outline"
-          >
-            <CirclePlus data-icon="inline-start" />
-            Add a task
-          </Button>
-        </div>
+          {!draftOpen ? (
+            <div className="mt-2">
+              <Button
+                className="w-full justify-start rounded-xl border-dashed text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setDraftKey((key) => key + 1);
+                  setDraftOpen(true);
+                }}
+                variant="outline"
+              >
+                <CirclePlus data-icon="inline-start" />
+                Add a task
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {timeline}

@@ -19,19 +19,19 @@
 
 .grid {
   position: relative;
-  height: 1344px;
-  margin-top: 1rem;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) * 1.5);
+  height: calc(1344px + 10px);
   overflow: hidden;
-  background: color-mix(in oklch, var(--card) 88%, transparent);
+  background: transparent;
+  touch-action: none;
+  user-select: none;
 }
 
 .grid::before {
   position: absolute;
-  inset-block: 0;
+  top: 10px;
+  bottom: 0;
   left: 4rem;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   content: "";
 }
 
@@ -39,7 +39,7 @@
   position: absolute;
   inset-inline: 0;
   height: 1px;
-  border-top: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
 }
 
 .hour::after {
@@ -47,7 +47,7 @@
   top: 28px;
   right: 0;
   left: 4rem;
-  border-top: 1px dashed color-mix(in oklch, var(--border) 45%, transparent);
+  border-top: 1px dashed color-mix(in oklch, var(--border) 40%, transparent);
   content: "";
 }
 
@@ -55,75 +55,57 @@
   position: absolute;
   top: -0.5rem;
   left: 0.5rem;
+  z-index: 1;
   width: 2.75rem;
   color: var(--muted-foreground);
-  background: var(--card);
+  background: var(--background);
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
-.midnight {
-  position: absolute;
-  right: 0;
-  left: 0;
-  z-index: 2;
-  display: flex;
-  height: 2.75rem;
-  align-items: center;
-  gap: 0.75rem;
-  padding-inline: 0.5rem;
-  border-block: 1px solid color-mix(in oklch, var(--primary) 26%, transparent);
-  color: var(--foreground);
-  background: color-mix(in oklch, var(--accent) 82%, var(--card));
-  transform: translateY(-50%);
-  bottom: 0;
+.hourLabelFirst {
+  top: 0.125rem;
 }
+
 .now {
   position: absolute;
   right: 0;
-  left: 3.75rem;
-  z-index: 3;
-  height: 1px;
-  border-top: 1px solid var(--destructive);
+  left: 0;
+  z-index: 4;
+  height: 2px;
+  background: var(--destructive);
   color: var(--destructive);
   pointer-events: none;
 }
 .now::before {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  width: 7px;
-  height: 7px;
+  top: -3px;
+  left: 3.55rem;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--background) 80%, transparent);
   content: "";
 }
 .now span {
   position: absolute;
   top: -0.55rem;
-  right: calc(100% + 0.5rem);
-  width: 3.25rem;
+  left: 0.35rem;
+  z-index: 1;
+  width: 2.9rem;
+  padding-inline: 0.125rem;
+  background: var(--background);
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.625rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-.midnightTime {
-  width: 2.75rem;
-  color: var(--primary);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 0.625rem;
-  text-align: right;
-}
-
-.midnightDate {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
 .events {
   position: absolute;
   inset: 0 0.5rem 0 4rem;
@@ -142,8 +124,8 @@
   border-radius: var(--radius);
   outline: none;
   color: var(--foreground);
-  background: color-mix(in oklch, var(--task-color) 14%, var(--card));
-  box-shadow: 0 4px 14px color-mix(in oklch, var(--task-color) 8%, transparent);
+  background: color-mix(in oklch, var(--task-color) 12%, var(--background));
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--task-color) 10%, transparent);
   pointer-events: auto;
   touch-action: none;
   user-select: none;
@@ -226,6 +208,40 @@
   transform: translateX(-50%);
 }
 
+.draftBlock {
+  position: absolute;
+  right: 4px;
+  left: 4px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  padding: 0.375rem 0.5rem;
+  border: 1px dashed color-mix(in oklch, var(--primary) 55%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in oklch, var(--primary) 14%, var(--background));
+  pointer-events: none;
+}
+
+.draftBlockSolid {
+  border-style: solid;
+}
+
+.draftTime {
+  color: var(--primary);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 0.85rem;
+}
+
+.draftForm {
+  position: absolute;
+  right: 0.5rem;
+  left: 4rem;
+  z-index: 5;
+  pointer-events: auto;
+}
+
 @media (max-width: 639px) {
   .grid::before,
   .hour::after {
@@ -234,12 +250,15 @@
   .events {
     left: 3.5rem;
   }
-  .now {
-    left: 3.25rem;
+  .now::before {
+    left: 3.05rem;
   }
   .hourLabel,
-  .midnightTime {
+  .now span {
     width: 2.5rem;
+  }
+  .draftForm {
+    left: 3.5rem;
   }
   .task {
     padding: 0.3rem;

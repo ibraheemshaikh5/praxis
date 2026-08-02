@@ -30,7 +30,7 @@ export function WeekSelector({
 
   return (
     <div className="-mx-1 px-1">
-      <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 rounded-2xl border bg-card p-1.5 shadow-sm">
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 rounded-xl bg-muted/45 p-1">
         <Button
           aria-label="Previous week"
           onClick={() => onShiftWeek(-7)}

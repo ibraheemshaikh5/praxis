@@ -6,6 +6,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DayTimeline } from "@/components/planner/day-timeline";
 import { TodayButton } from "@/components/planner/jump-to-today";
 import { MetricsRail } from "@/components/planner/metrics-rail";
+import {
+  PlannerViewToggle,
+  type PlannerView,
+} from "@/components/planner/planner-view-toggle";
 import { TimelineNavProvider } from "@/components/planner/timeline-nav";
 import { AppShell } from "@/components/shell/app-shell";
 import {
@@ -22,6 +26,8 @@ import type { PlannerEntryPayload } from "@/lib/api/types";
 import type { TaskColorKey, TaskIconKey } from "@/lib/daily-planner/appearance";
 import { getPlannerTodayKey, type PlannerDateKey } from "@/lib/planner/dates";
 
+const VIEW_STORAGE_KEY = "praxis-planner-view";
+
 export function PlannerApp({
   timeZone,
   userEmail,
@@ -33,6 +39,19 @@ export function PlannerApp({
     () => getPlannerTodayKey(timeZone),
     [timeZone],
   );
+  const [view, setView] = React.useState<PlannerView>("list");
+
+  /* eslint-disable react-hooks/set-state-in-effect -- Restore the browser-local view preference after hydration. */
+  React.useEffect(() => {
+    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (stored === "calendar") setView("calendar");
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const changeView = React.useCallback((nextView: PlannerView) => {
+    setView(nextView);
+    window.localStorage.setItem(VIEW_STORAGE_KEY, nextView);
+  }, []);
 
   const queryClient = useQueryClient();
   const createTask = useCreateTask();
@@ -154,7 +173,12 @@ export function PlannerApp({
         <AppShell
           headerAction={<TodayButton />}
           onSignOut={() => void signOut()}
-          rail={<MetricsRail todayKey={todayKey} />}
+          rail={
+            <div className="space-y-8">
+              <PlannerViewToggle onChange={changeView} view={view} />
+              <MetricsRail todayKey={todayKey} />
+            </div>
+          }
           title="Daily planner"
           userEmail={userEmail}
         >
@@ -170,6 +194,7 @@ export function PlannerApp({
             }
             todayKey={todayKey}
             timeZone={timeZone}
+            view={view}
           />
         </AppShell>
       </TimelineNavProvider>
