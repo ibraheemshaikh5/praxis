@@ -1,8 +1,13 @@
 import type {
+  ApplicationMutationResponse,
+  ApplicationsResponse,
   BareMetricPayload,
   BareTaskPayload,
+  CreateApplicationBody,
   CreateMetricBody,
   CreateTaskBody,
+  GoogleConnectionResponse,
+  ImportApplicationsResponse,
   MetricsResponse,
   PlannerResponse,
   ReorderPlannerBody,
@@ -10,6 +15,7 @@ import type {
   SetMetricLinkBody,
   TaskMetricLinkPayload,
   TaskMutationResponse,
+  UpdateApplicationBody,
   UpdateMetricBody,
   UpdateTaskBody,
 } from "./types";
@@ -184,4 +190,54 @@ export function setMetricLink(taskId: string, body: SetMetricLinkBody) {
       body: JSON.stringify(body),
     },
   );
+}
+
+export function fetchApplications(cycle?: string) {
+  const query = new URLSearchParams(cycle ? { cycle } : {});
+  const suffix = query.size > 0 ? `?${query}` : "";
+  return request<ApplicationsResponse>(`/api/applications${suffix}`);
+}
+
+export function createApplication(body: CreateApplicationBody) {
+  return request<ApplicationMutationResponse>("/api/applications", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateApplication(
+  applicationId: string,
+  body: UpdateApplicationBody,
+) {
+  return request<ApplicationMutationResponse>(
+    `/api/applications/${applicationId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function syncApplication(applicationId: string) {
+  return request<ApplicationMutationResponse>(
+    `/api/applications/${applicationId}/sync`,
+    { method: "POST" },
+  );
+}
+
+export function importApplications(cycle?: string) {
+  return request<ImportApplicationsResponse>("/api/applications/import", {
+    method: "POST",
+    body: JSON.stringify(cycle ? { cycle } : {}),
+  });
+}
+
+export function fetchGoogleConnection() {
+  return request<GoogleConnectionResponse>("/api/google/connection");
+}
+
+export function disconnectGoogle() {
+  return request<GoogleConnectionResponse>("/api/google/connection", {
+    method: "DELETE",
+  });
 }
