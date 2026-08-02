@@ -26,6 +26,23 @@ describe("daily planner contracts", () => {
     ).toMatchObject({ inbox: "false" });
   });
 
+  it("accepts curated task appearance and rejects unknown values", () => {
+    expect(
+      createTaskSchema.parse({
+        title: "Read",
+        iconKey: "book",
+        colorKey: "sky",
+      }),
+    ).toMatchObject({ iconKey: "book", colorKey: "sky" });
+    expect(() =>
+      createTaskSchema.parse({
+        title: "Read",
+        iconKey: "rocket",
+        colorKey: "purple",
+      }),
+    ).toThrow();
+  });
+
   it("rejects invalid dates and oversized planner ranges", () => {
     expect(() =>
       plannerRangeQuerySchema.parse({

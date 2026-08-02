@@ -182,6 +182,8 @@ export class DailyPlannerService {
           userId,
           title: input.title,
           notes: input.notes,
+          iconKey: input.iconKey,
+          colorKey: input.colorKey,
         })
         .returning();
 
@@ -216,6 +218,8 @@ export class DailyPlannerService {
       .set({
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
+        ...(input.colorKey !== undefined ? { colorKey: input.colorKey } : {}),
         version: sql`${tasks.version} + 1`,
       })
       .where(

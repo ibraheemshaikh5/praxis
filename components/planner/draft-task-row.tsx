@@ -3,8 +3,26 @@
 import * as React from "react";
 
 import { EditableText } from "@/components/planner/editable-text";
+import { TaskGlyph } from "@/components/planner/task-appearance";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DEFAULT_TASK_COLOR,
+  DEFAULT_TASK_ICON,
+  TASK_COLOR_KEYS,
+  TASK_ICON_KEYS,
+  type TaskColorKey,
+  type TaskIconKey,
+} from "@/lib/daily-planner/appearance";
 import { cn } from "@/lib/utils";
+
+const colorClasses: Record<TaskColorKey, string> = {
+  olive: "bg-primary",
+  sage: "bg-chart-2",
+  apricot: "bg-chart-3",
+  rose: "bg-destructive",
+  sky: "bg-chart-5",
+  ink: "bg-foreground",
+};
 
 export function DraftTaskRow({
   onCommit,
@@ -14,6 +32,8 @@ export function DraftTaskRow({
   onCommit: (input: {
     title: string;
     notes: string | null;
+    iconKey: TaskIconKey;
+    colorKey: TaskColorKey;
     continueDraft: boolean;
   }) => void;
   onDiscard: () => void;
@@ -22,6 +42,9 @@ export function DraftTaskRow({
   const [title, setTitle] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [editingNotes, setEditingNotes] = React.useState(false);
+  const [iconKey, setIconKey] = React.useState<TaskIconKey>(DEFAULT_TASK_ICON);
+  const [colorKey, setColorKey] =
+    React.useState<TaskColorKey>(DEFAULT_TASK_COLOR);
   const notesRef = React.useRef<HTMLTextAreaElement>(null);
   const committedRef = React.useRef(false);
 
@@ -37,6 +60,8 @@ export function DraftTaskRow({
     onCommit({
       title: cleanTitle,
       notes: notes.trim() || null,
+      iconKey,
+      colorKey,
       continueDraft,
     });
   }
@@ -108,6 +133,49 @@ export function DraftTaskRow({
             Add note
           </button>
         )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <fieldset className="flex items-center gap-0.5">
+            <legend className="sr-only">Task icon</legend>
+            {TASK_ICON_KEYS.map((key) => (
+              <button
+                aria-label={`Use ${key} icon`}
+                aria-pressed={iconKey === key}
+                className={cn(
+                  "grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  iconKey === key && "bg-muted text-foreground",
+                )}
+                key={key}
+                onClick={() => setIconKey(key)}
+                onMouseDown={(event) => event.preventDefault()}
+                type="button"
+              >
+                <span className="[&>svg]:size-3.5">
+                  <TaskGlyph iconKey={key} />
+                </span>
+              </button>
+            ))}
+          </fieldset>
+
+          <fieldset className="flex items-center gap-1.5">
+            <legend className="sr-only">Task color</legend>
+            {TASK_COLOR_KEYS.map((key) => (
+              <button
+                aria-label={`Use ${key} color`}
+                aria-pressed={colorKey === key}
+                className={cn(
+                  "size-4 rounded-full border-2 border-card ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  colorClasses[key],
+                  colorKey === key && "ring-2 ring-foreground/60",
+                )}
+                key={key}
+                onClick={() => setColorKey(key)}
+                onMouseDown={(event) => event.preventDefault()}
+                type="button"
+              />
+            ))}
+          </fieldset>
+        </div>
       </div>
     </article>
   );

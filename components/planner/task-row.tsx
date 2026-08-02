@@ -12,12 +12,21 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PlannerEntryPayload } from "@/lib/api/types";
 import { formatTimeBlock, type PlannerDateKey } from "@/lib/planner/dates";
+import {
+  DEFAULT_DURATION_MINUTES,
+  MINUTES_PER_DAY,
+  SNAP_MINUTES,
+  addDays,
+  clamp,
+  pointerToTimelineMinutes,
+} from "@/lib/planner/timeline";
 import { cn } from "@/lib/utils";
 
 export function TaskRow({
   entry,
   onDelete,
   onSchedule,
+  onScheduleAtTime,
   onToggle,
   onUpdate,
   pending,
@@ -28,6 +37,12 @@ export function TaskRow({
   onSchedule: (input: {
     entry: PlannerEntryPayload;
     plannerDate: PlannerDateKey;
+  }) => void;
+  onScheduleAtTime?: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+    start: number;
+    duration: number;
   }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
@@ -56,12 +71,14 @@ export function TaskRow({
   const skipCommitRef = React.useRef(false);
 
   // Sync from server only while unfocused so a refetch never yanks the caret.
+  /* eslint-disable react-hooks/set-state-in-effect -- Server refetches update the editable draft only while it is not focused. */
   React.useEffect(() => {
     if (focused) return;
     setTitle(entry.task.title);
     setNotes(entry.task.notes ?? "");
     setEditingNotes(Boolean(entry.task.notes));
   }, [entry.task.title, entry.task.notes, focused]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const {
     attributes,
@@ -117,6 +134,52 @@ export function TaskRow({
     if (next instanceof Node && event.currentTarget.contains(next)) return;
     setFocused(false);
     commit();
+  }
+
+  function beginTimelineDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!onScheduleAtTime || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget;
+    button.setPointerCapture(event.pointerId);
+    button.dataset.dragging = "true";
+
+    const finish = (pointer: PointerEvent) => {
+      button.removeEventListener("pointerup", finish);
+      button.removeEventListener("pointercancel", cancelDrag);
+      delete button.dataset.dragging;
+      const grid = document.querySelector<HTMLElement>("[data-time-grid]");
+      const selectedDate = grid?.dataset.startDate;
+      if (!grid || !selectedDate) return;
+      const rect = grid.getBoundingClientRect();
+      if (
+        pointer.clientX < rect.left ||
+        pointer.clientX > rect.right ||
+        pointer.clientY < rect.top ||
+        pointer.clientY > rect.bottom
+      ) {
+        return;
+      }
+      const absoluteMinutes = clamp(
+        pointerToTimelineMinutes(pointer.clientY, rect.top, rect.height),
+        0,
+        MINUTES_PER_DAY * 2 - SNAP_MINUTES - DEFAULT_DURATION_MINUTES,
+      );
+      const dayIndex = Math.floor(absoluteMinutes / MINUTES_PER_DAY);
+      onScheduleAtTime({
+        entry,
+        plannerDate: addDays(selectedDate, dayIndex),
+        start: absoluteMinutes % MINUTES_PER_DAY,
+        duration: DEFAULT_DURATION_MINUTES,
+      });
+    };
+    const cancelDrag = () => {
+      button.removeEventListener("pointerup", finish);
+      button.removeEventListener("pointercancel", cancelDrag);
+      delete button.dataset.dragging;
+    };
+    button.addEventListener("pointerup", finish, { once: true });
+    button.addEventListener("pointercancel", cancelDrag, { once: true });
   }
 
   return (
@@ -218,6 +281,18 @@ export function TaskRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {!entry.startsAt && onScheduleAtTime ? (
+            <Button
+              aria-label={`Drag ${entry.task.title} onto the timeline`}
+              className="touch-none cursor-grab data-[dragging=true]:cursor-grabbing data-[dragging=true]:bg-muted"
+              onPointerDown={beginTimelineDrag}
+              size="icon-sm"
+              title="Drag onto the timeline"
+              variant="ghost"
+            >
+              <Clock />
+            </Button>
+          ) : null}
           <TaskDateMenu
             entry={entry}
             onSchedule={onSchedule}

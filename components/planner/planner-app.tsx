@@ -19,10 +19,8 @@ import {
 import { MetricsAnchorProvider, metricsKeys } from "@/hooks/use-metrics";
 import { signOut } from "@/lib/auth/actions";
 import type { PlannerEntryPayload } from "@/lib/api/types";
-import {
-  getPlannerTodayKey,
-  type PlannerDateKey,
-} from "@/lib/planner/dates";
+import type { TaskColorKey, TaskIconKey } from "@/lib/daily-planner/appearance";
+import { getPlannerTodayKey, type PlannerDateKey } from "@/lib/planner/dates";
 
 export function PlannerApp({
   timeZone,
@@ -53,10 +51,14 @@ export function PlannerApp({
       dateKey: PlannerDateKey;
       title: string;
       notes: string | null;
+      iconKey: TaskIconKey;
+      colorKey: TaskColorKey;
     }) => {
       await createTask.mutateAsync({
         title: input.title,
         notes: input.notes,
+        iconKey: input.iconKey,
+        colorKey: input.colorKey,
         plannerDate: input.dateKey,
       });
       invalidateMetrics();
@@ -114,10 +116,7 @@ export function PlannerApp({
   );
 
   const handleReorder = React.useCallback(
-    (input: {
-      plannerDate: PlannerDateKey;
-      orderedEntryIds: string[];
-    }) => {
+    (input: { plannerDate: PlannerDateKey; orderedEntryIds: string[] }) => {
       reorderDay.mutate(input);
     },
     [reorderDay],
@@ -127,11 +126,15 @@ export function PlannerApp({
     (input: {
       entry: PlannerEntryPayload;
       plannerDate: PlannerDateKey;
+      startsAt?: string | null;
+      endsAt?: string | null;
     }) => {
       scheduleTask.mutate(
         {
           taskId: input.entry.taskId,
           plannerDate: input.plannerDate,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
           expectedVersion: input.entry.task.version,
           fromDateKey: input.entry.plannerDate,
         },
@@ -161,6 +164,7 @@ export function PlannerApp({
               scheduleTask.isPending ? scheduleTask.variables?.taskId : null
             }
             todayKey={todayKey}
+            timeZone={timeZone}
           />
         </PlannerShell>
       </TimelineNavProvider>

@@ -33,6 +33,8 @@ Status: implemented foundation. Changes continue through migrations.
 - `user_id`
 - `title`
 - `notes`
+- `icon_key`: curated planner icon
+- `color_key`: curated planner color
 - `completed_at`
 - `deleted_at`
 - `version`

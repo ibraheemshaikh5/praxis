@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PlannerEntryPayload } from "@/lib/api/types";
+import type { TaskColorKey, TaskIconKey } from "@/lib/daily-planner/appearance";
 import {
   formatMonthDay,
   formatWeekday,
@@ -35,6 +36,8 @@ type PendingCreate = {
   id: string;
   title: string;
   notes: string | null;
+  iconKey: TaskIconKey;
+  colorKey: TaskColorKey;
 };
 
 export function DaySection({
@@ -50,6 +53,8 @@ export function DaySection({
   onUpdate,
   schedulePendingTaskId,
   sectionRef,
+  timeline,
+  onScheduleAtTime,
 }: {
   dateKey: PlannerDateKey;
   entries: PlannerEntryPayload[];
@@ -59,6 +64,8 @@ export function DaySection({
     dateKey: PlannerDateKey;
     title: string;
     notes: string | null;
+    iconKey: TaskIconKey;
+    colorKey: TaskColorKey;
   }) => Promise<void>;
   onDelete: (entry: PlannerEntryPayload) => void;
   onReorder: (input: {
@@ -69,6 +76,12 @@ export function DaySection({
     entry: PlannerEntryPayload;
     plannerDate: PlannerDateKey;
   }) => void;
+  onScheduleAtTime?: (input: {
+    entry: PlannerEntryPayload;
+    plannerDate: PlannerDateKey;
+    start: number;
+    duration: number;
+  }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
   onUpdate: (input: {
     entry: PlannerEntryPayload;
@@ -77,6 +90,7 @@ export function DaySection({
   }) => void;
   schedulePendingTaskId?: string | null;
   sectionRef?: React.Ref<HTMLElement>;
+  timeline?: React.ReactNode;
 }) {
   const [draftOpen, setDraftOpen] = React.useState(false);
   const [draftKey, setDraftKey] = React.useState(0);
@@ -112,12 +126,20 @@ export function DaySection({
   async function handleDraftCommit(input: {
     title: string;
     notes: string | null;
+    iconKey: TaskIconKey;
+    colorKey: TaskColorKey;
     continueDraft: boolean;
   }) {
     const pendingId = crypto.randomUUID();
     setPendingCreates((current) => [
       ...current,
-      { id: pendingId, title: input.title, notes: input.notes },
+      {
+        id: pendingId,
+        title: input.title,
+        notes: input.notes,
+        iconKey: input.iconKey,
+        colorKey: input.colorKey,
+      },
     ]);
 
     if (input.continueDraft) {
@@ -131,6 +153,8 @@ export function DaySection({
         dateKey,
         title: input.title,
         notes: input.notes,
+        iconKey: input.iconKey,
+        colorKey: input.colorKey,
       });
     } finally {
       setPendingCreates((current) =>
@@ -142,15 +166,14 @@ export function DaySection({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-(--planner-pane) snap-start snap-always flex-col border-t border-border/60 py-5"
+      className="flex flex-col border-t border-border/60 py-5"
       data-day={dateKey}
       id={`day-${dateKey}`}
       ref={sectionRef}
     >
       <div
         className={cn(
-          "sticky top-0 z-10 -mx-1 flex items-baseline justify-between gap-4 px-1 py-2",
-          "bg-background/90 backdrop-blur-md",
+          "-mx-1 flex items-baseline justify-between gap-4 px-1 py-2",
           isToday && "border-b border-primary/25",
         )}
       >
@@ -201,6 +224,7 @@ export function DaySection({
                   key={entry.id}
                   onDelete={onDelete}
                   onSchedule={onSchedule}
+                  onScheduleAtTime={onScheduleAtTime}
                   onToggle={onToggle}
                   onUpdate={onUpdate}
                   schedulePending={schedulePendingTaskId === entry.taskId}
@@ -238,6 +262,8 @@ export function DaySection({
           </Button>
         </div>
       ) : null}
+
+      {timeline}
     </section>
   );
 }
@@ -263,7 +289,9 @@ function PendingTaskRow({
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="text-[15px] font-medium leading-5">{title}</p>
         {notes ? (
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">{notes}</p>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            {notes}
+          </p>
         ) : null}
       </div>
     </article>

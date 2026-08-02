@@ -273,34 +273,92 @@ export function useScheduleTask() {
     mutationFn: (input: {
       taskId: string;
       plannerDate: PlannerDateKey;
+      startsAt?: string | null;
+      endsAt?: string | null;
       expectedVersion: number;
       fromDateKey: PlannerDateKey;
     }) =>
       scheduleTask(input.taskId, {
         plannerDate: input.plannerDate,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
         expectedVersion: input.expectedVersion,
       }),
     async onMutate(input) {
-      const fromQueryKey = plannerKeys.page(plannerPageIndex(input.fromDateKey));
+      const fromQueryKey = plannerKeys.page(
+        plannerPageIndex(input.fromDateKey),
+      );
+      const toQueryKey = plannerKeys.page(plannerPageIndex(input.plannerDate));
       await client.cancelQueries({ queryKey: fromQueryKey });
+      if (toQueryKey[2] !== fromQueryKey[2]) {
+        await client.cancelQueries({ queryKey: toQueryKey });
+      }
       const previousFrom = client.getQueryData<PageData>(fromQueryKey);
-
-      client.setQueryData<PageData>(fromQueryKey, (current) =>
-        current
-          ? {
-              ...current,
-              entries: current.entries.filter(
-                (entry) => entry.taskId !== input.taskId,
-              ),
-            }
-          : current,
+      const previousTo =
+        toQueryKey[2] === fromQueryKey[2]
+          ? previousFrom
+          : client.getQueryData<PageData>(toQueryKey);
+      const movingEntry = previousFrom?.entries.find(
+        (entry) => entry.taskId === input.taskId,
       );
 
-      return { previousFrom, fromQueryKey };
+      client.setQueryData<PageData>(fromQueryKey, (current) => {
+        if (!current) return current;
+        if (toQueryKey[2] !== fromQueryKey[2]) {
+          return {
+            ...current,
+            entries: current.entries.filter(
+              (entry) => entry.taskId !== input.taskId,
+            ),
+          };
+        }
+        return {
+          ...current,
+          entries: current.entries.map((entry) =>
+            entry.taskId === input.taskId
+              ? {
+                  ...entry,
+                  plannerDate: input.plannerDate,
+                  startsAt: input.startsAt ?? null,
+                  endsAt: input.endsAt ?? null,
+                  task: { ...entry.task, version: entry.task.version + 1 },
+                }
+              : entry,
+          ),
+        };
+      });
+
+      if (toQueryKey[2] !== fromQueryKey[2] && movingEntry) {
+        client.setQueryData<PageData>(toQueryKey, (current) =>
+          current
+            ? {
+                ...current,
+                entries: [
+                  ...current.entries,
+                  {
+                    ...movingEntry,
+                    plannerDate: input.plannerDate,
+                    startsAt: input.startsAt ?? null,
+                    endsAt: input.endsAt ?? null,
+                    task: {
+                      ...movingEntry.task,
+                      version: movingEntry.task.version + 1,
+                    },
+                  },
+                ],
+              }
+            : current,
+        );
+      }
+
+      return { previousFrom, previousTo, fromQueryKey, toQueryKey };
     },
     onError(error, _input, context) {
       if (context) {
         client.setQueryData(context.fromQueryKey, context.previousFrom);
+        if (context.toQueryKey[2] !== context.fromQueryKey[2]) {
+          client.setQueryData(context.toQueryKey, context.previousTo);
+        }
       }
       reportError(error, "Could not move that task.");
     },
