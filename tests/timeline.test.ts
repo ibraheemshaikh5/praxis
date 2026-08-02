@@ -6,10 +6,14 @@ import {
   clampTimelineStart,
   layoutOverlaps,
   minutesInTimeZone,
+  minutesToTimeInput,
   plannerWeek,
+  pointerToDayMinutes,
   pointerToTimelineMinutes,
+  resolveAutoPlacement,
   snapMinutes,
   startOfPlannerWeek,
+  timeInputToMinutes,
   zonedDateTimeToIso,
 } from "@/lib/planner/timeline";
 
@@ -36,8 +40,42 @@ describe("planner timeline", () => {
 
   it("converts pointer positions and keeps blocks inside one planner day", () => {
     expect(pointerToTimelineMinutes(250, 100, 1_000)).toBe(435);
+    expect(pointerToDayMinutes(350, 100, 1_000)).toBe(360);
     expect(clampTimelineStart(1_430, 30)).toBe(1_395);
     expect(clampTimelineDuration(1_395, 60)).toBe(30);
+  });
+
+  it("converts compact time inputs", () => {
+    expect(timeInputToMinutes("09:45")).toBe(585);
+    expect(timeInputToMinutes("25:00")).toBeNull();
+    expect(minutesToTimeInput(585)).toBe("09:45");
+  });
+
+  it("places consecutive tasks after the latest task or current quarter", () => {
+    expect(
+      resolveAutoPlacement({
+        duration: 30,
+        isToday: true,
+        latestEnd: 600,
+        nowMinutes: 617,
+      }),
+    ).toEqual({ dayOffset: 0, start: 630 });
+    expect(
+      resolveAutoPlacement({
+        duration: 30,
+        isToday: false,
+        latestEnd: null,
+        nowMinutes: 1_000,
+      }),
+    ).toEqual({ dayOffset: 0, start: 480 });
+    expect(
+      resolveAutoPlacement({
+        duration: 60,
+        isToday: false,
+        latestEnd: 1_410,
+        nowMinutes: 0,
+      }),
+    ).toEqual({ dayOffset: 1, start: 480 });
   });
 
   it("converts Eastern wall times across DST", () => {

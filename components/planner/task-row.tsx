@@ -3,23 +3,16 @@
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock, GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 
 import { EditableText } from "@/components/planner/editable-text";
 import { TaskDateMenu } from "@/components/planner/task-date-menu";
 import { TaskMetricMenu } from "@/components/planner/task-metric-menu";
+import { TaskTimeMenu } from "@/components/planner/task-time-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PlannerEntryPayload } from "@/lib/api/types";
 import { formatTimeBlock, type PlannerDateKey } from "@/lib/planner/dates";
-import {
-  DEFAULT_DURATION_MINUTES,
-  MINUTES_PER_DAY,
-  SNAP_MINUTES,
-  addDays,
-  clamp,
-  pointerToTimelineMinutes,
-} from "@/lib/planner/timeline";
 import { cn } from "@/lib/utils";
 
 export function TaskRow({
@@ -136,52 +129,6 @@ export function TaskRow({
     commit();
   }
 
-  function beginTimelineDrag(event: React.PointerEvent<HTMLButtonElement>) {
-    if (!onScheduleAtTime || event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const button = event.currentTarget;
-    button.setPointerCapture(event.pointerId);
-    button.dataset.dragging = "true";
-
-    const finish = (pointer: PointerEvent) => {
-      button.removeEventListener("pointerup", finish);
-      button.removeEventListener("pointercancel", cancelDrag);
-      delete button.dataset.dragging;
-      const grid = document.querySelector<HTMLElement>("[data-time-grid]");
-      const selectedDate = grid?.dataset.startDate;
-      if (!grid || !selectedDate) return;
-      const rect = grid.getBoundingClientRect();
-      if (
-        pointer.clientX < rect.left ||
-        pointer.clientX > rect.right ||
-        pointer.clientY < rect.top ||
-        pointer.clientY > rect.bottom
-      ) {
-        return;
-      }
-      const absoluteMinutes = clamp(
-        pointerToTimelineMinutes(pointer.clientY, rect.top, rect.height),
-        0,
-        MINUTES_PER_DAY * 2 - SNAP_MINUTES - DEFAULT_DURATION_MINUTES,
-      );
-      const dayIndex = Math.floor(absoluteMinutes / MINUTES_PER_DAY);
-      onScheduleAtTime({
-        entry,
-        plannerDate: addDays(selectedDate, dayIndex),
-        start: absoluteMinutes % MINUTES_PER_DAY,
-        duration: DEFAULT_DURATION_MINUTES,
-      });
-    };
-    const cancelDrag = () => {
-      button.removeEventListener("pointerup", finish);
-      button.removeEventListener("pointercancel", cancelDrag);
-      delete button.dataset.dragging;
-    };
-    button.addEventListener("pointerup", finish, { once: true });
-    button.addEventListener("pointercancel", cancelDrag, { once: true });
-  }
-
   return (
     <div
       className={cn(
@@ -272,26 +219,21 @@ export function TaskRow({
             </button>
           )}
 
-          {timeBlock ? (
-            <p className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-              <Clock className="size-3" />
-              {timeBlock}
-            </p>
-          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {!entry.startsAt && onScheduleAtTime ? (
-            <Button
-              aria-label={`Drag ${entry.task.title} onto the timeline`}
-              className="touch-none cursor-grab data-[dragging=true]:cursor-grabbing data-[dragging=true]:bg-muted"
-              onPointerDown={beginTimelineDrag}
-              size="icon-sm"
-              title="Drag onto the timeline"
-              variant="ghost"
-            >
-              <Clock />
-            </Button>
+          {timeBlock ? (
+            <span className="mr-1 max-w-24 shrink-0 truncate font-mono text-[11px] tabular-nums text-muted-foreground sm:max-w-40 sm:text-xs">
+              {timeBlock}
+            </span>
+          ) : null}
+          {onScheduleAtTime ? (
+            <TaskTimeMenu
+              entry={entry}
+              onSchedule={onSchedule}
+              onScheduleAtTime={onScheduleAtTime}
+              pending={schedulePending}
+            />
           ) : null}
           <TaskDateMenu
             entry={entry}
