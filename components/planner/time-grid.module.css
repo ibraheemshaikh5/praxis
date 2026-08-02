@@ -19,7 +19,7 @@
 
 .grid {
   position: relative;
-  height: 2688px;
+  height: 1344px;
   margin-top: 1rem;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 1.5);
@@ -78,6 +78,38 @@
   color: var(--foreground);
   background: color-mix(in oklch, var(--accent) 82%, var(--card));
   transform: translateY(-50%);
+  bottom: 0;
+}
+.now {
+  position: absolute;
+  right: 0;
+  left: 3.75rem;
+  z-index: 3;
+  height: 1px;
+  border-top: 1px solid var(--destructive);
+  color: var(--destructive);
+  pointer-events: none;
+}
+.now::before {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--destructive);
+  content: "";
+}
+.now span {
+  position: absolute;
+  top: -0.55rem;
+  right: calc(100% + 0.5rem);
+  width: 3.25rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .midnightTime {
@@ -201,6 +233,9 @@
   }
   .events {
     left: 3.5rem;
+  }
+  .now {
+    left: 3.25rem;
   }
   .hourLabel,
   .midnightTime {

@@ -45,6 +45,56 @@ export function pointerToTimelineMinutes(
   );
 }
 
+export function pointerToDayMinutes(
+  pointerY: number,
+  timelineTop: number,
+  timelineHeight: number,
+) {
+  return clamp(
+    snapMinutes(
+      ((pointerY - timelineTop) / timelineHeight) * MINUTES_PER_DAY,
+    ),
+    0,
+    MINUTES_PER_DAY - SNAP_MINUTES,
+  );
+}
+
+export function timeInputToMinutes(value: string) {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+export function minutesToTimeInput(minutes: number) {
+  const normalized = clamp(Math.round(minutes), 0, MINUTES_PER_DAY - 1);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+export function resolveAutoPlacement({
+  duration,
+  isToday,
+  latestEnd,
+  nowMinutes,
+}: {
+  duration: number;
+  isToday: boolean;
+  latestEnd: number | null;
+  nowMinutes: number;
+}) {
+  const nextQuarter = Math.ceil(nowMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+  const defaultStart = isToday ? nextQuarter : 8 * 60;
+  const start = Math.max(latestEnd ?? defaultStart, isToday ? nextQuarter : 0);
+
+  if (start + duration > MINUTES_PER_DAY) {
+    return { dayOffset: 1, start: 8 * 60 };
+  }
+
+  return { dayOffset: 0, start };
+}
+
 export function clampTimelineStart(start: number, duration: number) {
   return clamp(start, 0, MINUTES_PER_DAY - SNAP_MINUTES - duration);
 }

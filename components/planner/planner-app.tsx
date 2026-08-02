@@ -53,6 +53,8 @@ export function PlannerApp({
       notes: string | null;
       iconKey: TaskIconKey;
       colorKey: TaskColorKey;
+      startsAt?: string | null;
+      endsAt?: string | null;
     }) => {
       await createTask.mutateAsync({
         title: input.title,
@@ -60,6 +62,8 @@ export function PlannerApp({
         iconKey: input.iconKey,
         colorKey: input.colorKey,
         plannerDate: input.dateKey,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
       });
       invalidateMetrics();
     },

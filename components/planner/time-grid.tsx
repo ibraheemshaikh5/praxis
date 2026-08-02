@@ -15,6 +15,7 @@ import {
   clampTimelineStart,
   layoutOverlaps,
   minutesInTimeZone,
+  pointerToDayMinutes,
   snapMinutes,
   timeLabel,
 } from "@/lib/planner/timeline";
@@ -25,15 +26,20 @@ import styles from "./time-grid.module.css";
 export const TIMELINE_HOUR_HEIGHT = 56;
 export const TIMELINE_MINUTE_HEIGHT = TIMELINE_HOUR_HEIGHT / 60;
 
+function gridAtPoint(x: number, y: number) {
+  return document
+    .elementsFromPoint(x, y)
+    .map((element) => element.closest<HTMLElement>("[data-time-grid]"))
+    .find(Boolean);
+}
+
 function TimelineTask({
-  dayIndex,
   entry,
   layout,
   onDelete,
   onSchedule,
   onToggle,
 }: {
-  dayIndex: number;
   entry: PlannerEntryPayload;
   layout: { column: number; columns: number };
   onDelete: (entry: PlannerEntryPayload) => void;
@@ -48,8 +54,11 @@ function TimelineTask({
   const elementRef = React.useRef<HTMLElement>(null);
   const interaction = React.useRef<{
     y: number;
+    lastX: number;
+    lastY: number;
     mode: "move" | "resize";
     delta: number;
+    grabOffset: number;
     moved: boolean;
   } | null>(null);
   const start = minutesInTimeZone(entry.startsAt!, entry.timeZone);
@@ -69,7 +78,22 @@ function TimelineTask({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    interaction.current = { y: event.clientY, mode, delta: 0, moved: false };
+    const rect = elementRef.current?.getBoundingClientRect();
+    interaction.current = {
+      y: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      mode,
+      delta: 0,
+      grabOffset: rect
+        ? clamp(
+            (event.clientY - rect.top) / TIMELINE_MINUTE_HEIGHT,
+            0,
+            duration,
+          )
+        : 0,
+      moved: false,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -77,18 +101,14 @@ function TimelineTask({
     const current = interaction.current;
     const element = elementRef.current;
     if (!current || !element) return;
+    current.lastX = event.clientX;
+    current.lastY = event.clientY;
     const rawDelta = snapMinutes(
       (event.clientY - current.y) / TIMELINE_MINUTE_HEIGHT,
     );
     const delta =
       current.mode === "move"
-        ? clamp(
-            rawDelta,
-            -(dayIndex * MINUTES_PER_DAY + start),
-            MINUTES_PER_DAY * 2 -
-              duration -
-              (dayIndex * MINUTES_PER_DAY + start),
-          )
+        ? rawDelta
         : clamp(
             rawDelta,
             SNAP_MINUTES - duration,
@@ -120,16 +140,32 @@ function TimelineTask({
       });
       return;
     }
-    const absoluteStart = dayIndex * MINUTES_PER_DAY + start + current.delta;
-    const targetDay = Math.floor(absoluteStart / MINUTES_PER_DAY);
-    const localStart = clampTimelineStart(
-      absoluteStart % MINUTES_PER_DAY,
-      duration,
-    );
+
+    const targetGrid = gridAtPoint(current.lastX, current.lastY);
+    const targetDate = targetGrid?.dataset.date;
+    if (targetGrid && targetDate) {
+      const rect = targetGrid.getBoundingClientRect();
+      const pointerMinute = pointerToDayMinutes(
+        current.lastY,
+        rect.top,
+        rect.height,
+      );
+      onSchedule({
+        entry,
+        plannerDate: targetDate,
+        start: clampTimelineStart(
+          snapMinutes(pointerMinute - current.grabOffset),
+          duration,
+        ),
+        duration,
+      });
+      return;
+    }
+
     onSchedule({
       entry,
-      plannerDate: addDays(entry.plannerDate, targetDay - dayIndex),
-      start: localStart,
+      plannerDate: entry.plannerDate,
+      start: clampTimelineStart(start + current.delta, duration),
       duration,
     });
   }
@@ -146,25 +182,35 @@ function TimelineTask({
         duration: clamp(
           duration + delta,
           SNAP_MINUTES,
-          MINUTES_PER_DAY - start,
+          MINUTES_PER_DAY - SNAP_MINUTES - start,
         ),
       });
       return;
     }
-    const absoluteStart = clamp(
-      dayIndex * MINUTES_PER_DAY + start + delta,
-      0,
-      MINUTES_PER_DAY * 2 - SNAP_MINUTES - duration,
-    );
-    const targetDay = Math.floor(absoluteStart / MINUTES_PER_DAY);
-    const localStart = clampTimelineStart(
-      absoluteStart % MINUTES_PER_DAY,
-      duration,
-    );
+
+    const nextStart = start + delta;
+    if (nextStart < 0) {
+      onSchedule({
+        entry,
+        plannerDate: addDays(entry.plannerDate, -1),
+        start: clampTimelineStart(MINUTES_PER_DAY - duration, duration),
+        duration,
+      });
+      return;
+    }
+    if (nextStart + duration > MINUTES_PER_DAY - SNAP_MINUTES) {
+      onSchedule({
+        entry,
+        plannerDate: addDays(entry.plannerDate, 1),
+        start: 0,
+        duration,
+      });
+      return;
+    }
     onSchedule({
       entry,
-      plannerDate: addDays(entry.plannerDate, targetDay - dayIndex),
-      start: localStart,
+      plannerDate: entry.plannerDate,
+      start: nextStart,
       duration,
     });
   }
@@ -185,7 +231,7 @@ function TimelineTask({
       ref={elementRef}
       role="button"
       style={{
-        top: (dayIndex * MINUTES_PER_DAY + start) * TIMELINE_MINUTE_HEIGHT + 2,
+        top: start * TIMELINE_MINUTE_HEIGHT + 2,
         height: Math.max(duration * TIMELINE_MINUTE_HEIGHT - 4, 28),
         left: `calc(${layout.column * width}% + 4px)`,
         width: `calc(${width}% - 8px)`,
@@ -204,9 +250,7 @@ function TimelineTask({
         ) : null}
       </span>
       <button
-        aria-label={
-          entry.task.completedAt ? "Mark incomplete" : "Mark complete"
-        }
+        aria-label={entry.task.completedAt ? "Mark incomplete" : "Mark complete"}
         className={styles.action}
         onClick={(event) => {
           event.stopPropagation();
@@ -242,16 +286,17 @@ function TimelineTask({
 }
 
 export function TimeGrid({
+  dateKey,
   entries,
-  nextDate,
+  isToday,
   onDelete,
   onSchedule,
   onToggle,
-  selectedDate,
-  timelineRef,
+  timeZone,
 }: {
+  dateKey: PlannerDateKey;
   entries: PlannerEntryPayload[];
-  nextDate: PlannerDateKey;
+  isToday: boolean;
   onDelete: (entry: PlannerEntryPayload) => void;
   onSchedule: (input: {
     entry: PlannerEntryPayload;
@@ -260,64 +305,57 @@ export function TimeGrid({
     duration: number;
   }) => void;
   onToggle: (entry: PlannerEntryPayload) => void;
-  selectedDate: PlannerDateKey;
-  timelineRef: React.RefObject<HTMLDivElement | null>;
+  timeZone: string;
 }) {
-  const layoutById = React.useMemo(() => {
-    const result = new Map<string, { column: number; columns: number }>();
-    for (const date of [selectedDate, nextDate]) {
-      const layout = layoutOverlaps(
-        entries
-          .filter((entry) => entry.plannerDate === date)
-          .map((entry) => {
-            const start = minutesInTimeZone(entry.startsAt!, entry.timeZone);
-            const end = entry.endsAt
-              ? minutesInTimeZone(entry.endsAt, entry.timeZone)
-              : start + DEFAULT_DURATION_MINUTES;
-            return { id: entry.id, start, end: end > start ? end : start + 30 };
-          }),
-      );
-      for (const [id, value] of layout) result.set(id, value);
-    }
-    return result;
-  }, [entries, nextDate, selectedDate]);
+  const [now, setNow] = React.useState(() => new Date().toISOString());
+  React.useEffect(() => {
+    if (!isToday) return;
+    const timer = window.setInterval(() => setNow(new Date().toISOString()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [isToday]);
+
+  const layoutById = React.useMemo(
+    () =>
+      layoutOverlaps(
+        entries.map((entry) => {
+          const start = minutesInTimeZone(entry.startsAt!, entry.timeZone);
+          const end = entry.endsAt
+            ? minutesInTimeZone(entry.endsAt, entry.timeZone)
+            : start + DEFAULT_DURATION_MINUTES;
+          return { id: entry.id, start, end: end > start ? end : start + 30 };
+        }),
+      ),
+    [entries],
+  );
+  const currentMinute = isToday ? minutesInTimeZone(now, timeZone) : null;
 
   return (
-    <div
-      className={styles.grid}
-      data-start-date={selectedDate}
-      data-time-grid
-      ref={timelineRef}
-    >
-      {Array.from({ length: 48 }, (_, hour) => (
+    <div className={styles.grid} data-date={dateKey} data-time-grid>
+      {Array.from({ length: 24 }, (_, hour) => (
         <div
           className={styles.hour}
           key={hour}
           style={{ top: hour * TIMELINE_HOUR_HEIGHT }}
         >
           <span className={styles.hourLabel}>
-            {timeLabel((hour % 24) * 60).replace(":00", "")}
+            {timeLabel(hour * 60).replace(":00", "")}
           </span>
         </div>
       ))}
-      <div
-        className={styles.midnight}
-        style={{ top: MINUTES_PER_DAY * TIMELINE_MINUTE_HEIGHT }}
-      >
-        <span className={styles.midnightTime}>12 AM</span>
-        <span className={styles.midnightDate}>
-          {new Intl.DateTimeFormat("en-US", {
-            day: "numeric",
-            month: "long",
-            timeZone: "UTC",
-            weekday: "long",
-          }).format(new Date(`${nextDate}T12:00:00.000Z`))}
-        </span>
-      </div>
+      {currentMinute !== null ? (
+        <div
+          aria-label={`Current time ${timeLabel(currentMinute)}`}
+          className={styles.now}
+          data-current-time-line
+          role="separator"
+          style={{ top: currentMinute * TIMELINE_MINUTE_HEIGHT }}
+        >
+          <span>{timeLabel(currentMinute)}</span>
+        </div>
+      ) : null}
       <div className={styles.events}>
         {entries.map((entry) => (
           <TimelineTask
-            dayIndex={entry.plannerDate === selectedDate ? 0 : 1}
             entry={entry}
             key={entry.id}
             layout={layoutById.get(entry.id) ?? { column: 0, columns: 1 }}
@@ -326,6 +364,10 @@ export function TimeGrid({
             onToggle={onToggle}
           />
         ))}
+      </div>
+      <div className={styles.midnight}>
+        <span className={styles.midnightTime}>12 AM</span>
+        <span className={styles.midnightDate}>Next day</span>
       </div>
     </div>
   );

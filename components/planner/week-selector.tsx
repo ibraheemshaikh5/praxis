@@ -29,7 +29,7 @@ export function WeekSelector({
   const days = plannerWeek(selectedDate);
 
   return (
-    <div className="sticky top-0 z-30 -mx-1 bg-background/95 px-1 pt-3 pb-3 backdrop-blur-md">
+    <div className="-mx-1 px-1">
       <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 rounded-2xl border bg-card p-1.5 shadow-sm">
         <Button
           aria-label="Previous week"
