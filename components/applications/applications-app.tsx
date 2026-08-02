@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import {
   ApplicationsTable,
-  NewRowHint,
   type RowDraft,
 } from "@/components/applications/applications-table";
 import { CycleSummary } from "@/components/applications/cycle-summary";
@@ -206,31 +205,32 @@ export function ApplicationsApp({
 
   return (
     <AppShell
-      headerAction={
-        <SheetToolbar
-          connection={connection}
-          cycle={cycle}
-          importing={importApplications.isPending}
-          isLoading={connectionQuery.isLoading}
-          onCycleChange={(next) => {
-            setCycle(next);
-            cancelEdit();
-          }}
-          onDisconnect={() => disconnectGoogle.mutate()}
-          onImport={() => importApplications.mutate(cycle)}
-          tabs={tabsQuery.data?.tabs ?? []}
-        />
-      }
       onSignOut={() => void signOut()}
       title="Applications"
       userEmail={userEmail}
     >
       <div className="py-8 lg:py-10">
-        <header className="mb-7">
-          <h1 className="text-2xl font-semibold tracking-tight">{cycle}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Every application this cycle, numbered in the order you sent them.
-          </p>
+        <header className="mb-6 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{cycle}</h1>
+            <SheetToolbar
+              connection={connection}
+              cycle={cycle}
+              importing={importApplications.isPending}
+              isLoading={connectionQuery.isLoading}
+              onCycleChange={(next) => {
+                setCycle(next);
+                cancelEdit();
+              }}
+              onDisconnect={() => disconnectGoogle.mutate()}
+              onImport={() => importApplications.mutate(cycle)}
+              tabs={tabsQuery.data?.tabs ?? []}
+            />
+          </div>
+
+          {!isLoading && !isError ? (
+            <CycleSummary applications={applications} />
+          ) : null}
         </header>
 
         {isLoading ? (
@@ -249,28 +249,24 @@ export function ApplicationsApp({
         ) : null}
 
         {!isLoading && !isError ? (
-          <>
-            <ApplicationsTable
-              applications={applications}
-              creating={createApplication.isPending}
-              draft={draft}
-              editingId={editingId}
-              newDraft={newDraft}
-              nextNumber={nextNumber}
-              onCancelEdit={cancelEdit}
-              onCommitEdit={commitEdit}
-              onCommitNew={commitNew}
-              onDraftChange={setDraft}
-              onNewDraftChange={setNewDraft}
-              onRetrySync={(applicationId) =>
-                syncApplication.mutate(applicationId)
-              }
-              onStartEdit={startEdit}
-              onStatusChange={handleStatusChange}
-            />
-            <NewRowHint />
-            <CycleSummary applications={applications} />
-          </>
+          <ApplicationsTable
+            applications={applications}
+            creating={createApplication.isPending}
+            draft={draft}
+            editingId={editingId}
+            newDraft={newDraft}
+            nextNumber={nextNumber}
+            onCancelEdit={cancelEdit}
+            onCommitEdit={commitEdit}
+            onCommitNew={commitNew}
+            onDraftChange={setDraft}
+            onNewDraftChange={setNewDraft}
+            onRetrySync={(applicationId) =>
+              syncApplication.mutate(applicationId)
+            }
+            onStartEdit={startEdit}
+            onStatusChange={handleStatusChange}
+          />
         ) : null}
       </div>
     </AppShell>

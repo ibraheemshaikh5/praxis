@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 import { CompanyLogo } from "@/components/applications/company-logo";
 import { StatusBadge } from "@/components/applications/status-badge";
@@ -372,14 +372,5 @@ export function ApplicationsTable({
         />
       </tbody>
     </table>
-  );
-}
-
-export function NewRowHint() {
-  return (
-    <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Plus className="size-3" />
-      Type in the last row and press Enter. Click any row to edit it.
-    </p>
   );
 }
