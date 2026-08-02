@@ -99,7 +99,10 @@ export function DayTimeline({
 
   const { entriesByDay, loadedPages } = usePlannerPages(pageIndices);
   const dayKeys = React.useMemo(
-    () => pageIndices.flatMap((pageIndex) => plannerPageDayKeys(pageIndex)),
+    () =>
+      pageIndices
+        .flatMap((pageIndex) => plannerPageDayKeys(pageIndex))
+        .reverse(),
     [pageIndices],
   );
 
@@ -122,10 +125,14 @@ export function DayTimeline({
   }, []);
 
   const extendLater = React.useCallback(() => {
+    let extended = false;
     setPageIndices((current) => {
       const nextIndex = current[current.length - 1]! + 1;
-      return current.includes(nextIndex) ? current : [...current, nextIndex];
+      if (current.includes(nextIndex)) return current;
+      extended = true;
+      return [...current, nextIndex];
     });
+    return extended;
   }, []);
 
   const requestDate = React.useCallback(
@@ -209,8 +216,8 @@ export function DayTimeline({
         mode={view}
         onCreate={onCreate}
         onDelete={onDelete}
-        onExtendEarlier={extendEarlier}
-        onExtendLater={extendLater}
+        onExtendBottom={extendEarlier}
+        onExtendTop={extendLater}
         onReorder={onReorder}
         onSchedule={onSchedule}
         onScheduleAtTime={scheduleAtTime}
@@ -264,8 +271,8 @@ function PlannerDayFeed({
   mode,
   onCreate,
   onDelete,
-  onExtendEarlier,
-  onExtendLater,
+  onExtendBottom,
+  onExtendTop,
   onReorder,
   onSchedule,
   onScheduleAtTime,
@@ -284,8 +291,8 @@ function PlannerDayFeed({
   mode: PlannerView;
   onCreate: (input: CreateInput) => Promise<void>;
   onDelete: (entry: PlannerEntryPayload) => void;
-  onExtendEarlier: () => boolean;
-  onExtendLater: () => void;
+  onExtendBottom: () => boolean;
+  onExtendTop: () => boolean;
   onReorder: (input: {
     plannerDate: PlannerDateKey;
     orderedEntryIds: string[];
@@ -332,8 +339,8 @@ function PlannerDayFeed({
   } = useTimelineScroll({
     getTodayScrollTop: mode === "calendar" ? calendarTodayOffset : undefined,
     loadedToday: loadedPages.has(todayPage),
-    onExtendEarlier,
-    onExtendLater,
+    onExtendBottom,
+    onExtendTop,
     onVisibleDate,
     pageIndices,
     todayKey,

@@ -5,14 +5,14 @@ import * as React from "react";
 import type { PlannerDateKey } from "@/lib/planner/dates";
 
 /**
- * Keeps the timeline scrollport stable when earlier pages are prepended, and
+ * Keeps the timeline scrollport stable when pages are prepended, and
  * performs the one-time instant jump to today after the first page settles.
  */
 export function useTimelineScroll({
   getTodayScrollTop,
   loadedToday,
-  onExtendEarlier,
-  onExtendLater,
+  onExtendBottom,
+  onExtendTop,
   onVisibleDate,
   pageIndices,
   todayKey,
@@ -22,8 +22,8 @@ export function useTimelineScroll({
     today: HTMLElement,
   ) => number;
   loadedToday: boolean;
-  onExtendEarlier: () => boolean;
-  onExtendLater: () => void;
+  onExtendBottom: () => boolean;
+  onExtendTop: () => boolean;
   onVisibleDate?: (date: PlannerDateKey) => void;
   pageIndices: number[];
   todayKey: PlannerDateKey;
@@ -131,12 +131,12 @@ export function useTimelineScroll({
           if (entry.target === topSentinel) {
             if (ignoreTopRef.current || restoreRef.current) continue;
             if (!captureRestorePoint()) continue;
-            const extended = onExtendEarlier();
+            const extended = onExtendTop();
             if (!extended) restoreRef.current = null;
           }
 
           if (entry.target === bottomSentinel) {
-            onExtendLater();
+            onExtendBottom();
           }
         }
       },
@@ -149,7 +149,7 @@ export function useTimelineScroll({
     observer.observe(topSentinel);
     observer.observe(bottomSentinel);
     return () => observer.disconnect();
-  }, [captureRestorePoint, onExtendEarlier, onExtendLater]);
+  }, [captureRestorePoint, onExtendBottom, onExtendTop]);
 
   const [jumpVisible, setJumpVisible] = React.useState(false);
   const [jumpDirection, setJumpDirection] = React.useState<"up" | "down">(
