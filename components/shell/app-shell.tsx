@@ -145,8 +145,20 @@ export function AppShell({
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-10">
-          <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-14">
+        {/* Without a rail the content is the whole page, so it gets the wider
+            measure instead of leaving a 300px column standing empty. */}
+        <div
+          className={cn(
+            "mx-auto w-full px-4 sm:px-6 lg:px-10",
+            rail ? "max-w-6xl" : "max-w-7xl",
+          )}
+        >
+          <div
+            className={cn(
+              "grid gap-10",
+              rail && "xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-14",
+            )}
+          >
             <div className="min-w-0">{children}</div>
             {rail ? (
               <aside className="min-w-0 border-t border-border pt-8 pb-10 xl:border-t-0 xl:pt-0 xl:pb-0">

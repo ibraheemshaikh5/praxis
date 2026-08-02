@@ -1,18 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  ApplicationFormDialog,
-  type ApplicationFormValues,
-} from "@/components/applications/application-form-dialog";
-import { ApplicationsTable } from "@/components/applications/applications-table";
+  ApplicationsTable,
+  NewRowHint,
+  type RowDraft,
+} from "@/components/applications/applications-table";
 import { CycleSummary } from "@/components/applications/cycle-summary";
-import { GoogleConnectionCard } from "@/components/applications/google-connection-card";
+import { SheetToolbar } from "@/components/applications/sheet-toolbar";
 import { AppShell } from "@/components/shell/app-shell";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useApplications,
@@ -20,6 +18,7 @@ import {
   useDisconnectGoogle,
   useGoogleConnection,
   useImportApplications,
+  useSpreadsheetTabs,
   useSyncApplication,
   useUpdateApplication,
 } from "@/hooks/use-applications";
@@ -27,39 +26,53 @@ import { signOut } from "@/lib/auth/actions";
 import type { ApplicationPayload, ApplicationStatus } from "@/lib/api/types";
 import { getPlannerTodayKey } from "@/lib/planner/dates";
 
-const CONNECT_MESSAGES: Record<
-  string,
-  { message: string; tone: "error" | "success" }
-> = {
-  connected: { message: "Google Sheets connected.", tone: "success" },
-  denied: { message: "Google access was declined.", tone: "error" },
+const CONNECT_MESSAGES: Record<string, { message: string; ok: boolean }> = {
+  connected: { message: "Google Sheets connected.", ok: true },
+  denied: { message: "Google access was declined.", ok: false },
   invalid_state: {
     message: "That sign-in link expired. Try connecting again.",
-    tone: "error",
+    ok: false,
   },
 };
 
-function TableSkeleton() {
+const CYCLE_STORAGE_KEY = "praxis:applications:cycle";
+
+function emptyDraft(todayKey: string): RowDraft {
+  return {
+    company: "",
+    title: "",
+    status: "applied",
+    notes: "",
+    appliedOn: todayKey,
+  };
+}
+
+function draftFrom(application: ApplicationPayload): RowDraft {
+  return {
+    company: application.company,
+    title: application.title,
+    status: application.status,
+    notes: application.notes ?? "",
+    appliedOn: application.appliedOn,
+  };
+}
+
+function changed(draft: RowDraft, application: ApplicationPayload) {
   return (
-    <div
-      aria-label="Loading applications"
-      className="space-y-2.5"
-      role="status"
-    >
-      {[0, 1, 2, 3].map((index) => (
-        <Skeleton className="h-12 w-full rounded-2xl" key={index} />
-      ))}
-      <span className="sr-only">Loading applications</span>
-    </div>
+    draft.company.trim() !== application.company ||
+    draft.title.trim() !== application.title ||
+    draft.status !== application.status ||
+    (draft.notes.trim() || null) !== application.notes ||
+    draft.appliedOn !== application.appliedOn
   );
 }
 
 export function ApplicationsApp({
-  cycle,
+  defaultCycle,
   timeZone,
   userEmail,
 }: {
-  cycle: string;
+  defaultCycle: string;
   timeZone: string;
   userEmail: string | null;
 }) {
@@ -68,70 +81,116 @@ export function ApplicationsApp({
     [timeZone],
   );
 
+  const [cycle, setCycle] = React.useState(defaultCycle);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState<RowDraft | null>(null);
+  const [newDraft, setNewDraft] = React.useState<RowDraft>(() =>
+    emptyDraft(todayKey),
+  );
+
   const { data, isError, isLoading } = useApplications(cycle);
   const connectionQuery = useGoogleConnection();
+  const connection = connectionQuery.data?.connection;
+  const tabsQuery = useSpreadsheetTabs(Boolean(connection?.connected));
+
   const createApplication = useCreateApplication();
   const updateApplication = useUpdateApplication(cycle);
   const syncApplication = useSyncApplication();
   const importApplications = useImportApplications();
   const disconnectGoogle = useDisconnectGoogle();
 
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<ApplicationPayload | null>(null);
-
   const applications = React.useMemo(
     () => data?.applications ?? [],
     [data?.applications],
   );
-  const connection = connectionQuery.data?.connection;
-  const needsImport = Boolean(
-    connection?.connected && !connection.lastImportedAt,
+
+  const nextNumber = React.useMemo(
+    () =>
+      applications.reduce(
+        (highest, item) => Math.max(highest, item.applicationNumber),
+        0,
+      ) + 1,
+    [applications],
   );
+
+  // Remember the tab across visits; the cycle is a working context, not a route.
+  // The server cannot know the stored tab, so this can only be applied after
+  // mount — initializing from localStorage instead would desync hydration.
+  React.useEffect(() => {
+    const stored = window.localStorage.getItem(CYCLE_STORAGE_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored) setCycle(stored);
+  }, []);
+
+  React.useEffect(() => {
+    window.localStorage.setItem(CYCLE_STORAGE_KEY, cycle);
+  }, [cycle]);
 
   // The OAuth callback lands here with a result flag; report it once and drop
   // it from the address bar so a refresh does not repeat the toast.
   React.useEffect(() => {
     const url = new URL(window.location.href);
     const result = url.searchParams.get("google");
-    const copy = result ? CONNECT_MESSAGES[result] : undefined;
     if (!result) return;
 
-    if (copy) {
-      if (copy.tone === "success") toast.success(copy.message);
-      else toast.error(copy.message);
-    }
+    const copy = CONNECT_MESSAGES[result];
+    if (copy?.ok) toast.success(copy.message);
+    else if (copy) toast.error(copy.message);
 
     url.searchParams.delete("google");
     window.history.replaceState(null, "", url.toString());
   }, []);
 
-  const companySuggestions = React.useMemo(
-    () => [...new Set(applications.map((item) => item.company))].sort(),
-    [applications],
-  );
-
-  function openCreate() {
-    setEditing(null);
-    setDialogOpen(true);
+  function startEdit(application: ApplicationPayload) {
+    setEditingId(application.id);
+    setDraft(draftFrom(application));
   }
 
-  function openEdit(application: ApplicationPayload) {
-    setEditing(application);
-    setDialogOpen(true);
+  function cancelEdit() {
+    setEditingId(null);
+    setDraft(null);
   }
 
-  async function handleSubmit(values: ApplicationFormValues) {
-    if (editing) {
-      await updateApplication.mutateAsync({
-        applicationId: editing.id,
-        body: { ...values, expectedVersion: editing.version },
-      });
-    } else {
-      await createApplication.mutateAsync({ ...values, cycle });
+  function commitEdit() {
+    const application = applications.find((item) => item.id === editingId);
+    if (!application || !draft) return cancelEdit();
+
+    if (!draft.company.trim() || !draft.title.trim()) {
+      toast.error("Company and title cannot be empty.");
+      return;
     }
 
-    setDialogOpen(false);
-    setEditing(null);
+    if (changed(draft, application)) {
+      updateApplication.mutate({
+        applicationId: application.id,
+        body: {
+          company: draft.company.trim(),
+          title: draft.title.trim(),
+          status: draft.status,
+          notes: draft.notes.trim() || null,
+          appliedOn: draft.appliedOn,
+          expectedVersion: application.version,
+        },
+      });
+    }
+
+    cancelEdit();
+  }
+
+  function commitNew() {
+    if (!newDraft.company.trim() || !newDraft.title.trim()) return;
+
+    createApplication.mutate(
+      {
+        cycle,
+        company: newDraft.company.trim(),
+        title: newDraft.title.trim(),
+        status: newDraft.status,
+        notes: newDraft.notes.trim() || null,
+        appliedOn: newDraft.appliedOn,
+      },
+      { onSuccess: () => setNewDraft(emptyDraft(todayKey)) },
+    );
   }
 
   function handleStatusChange(
@@ -139,56 +198,49 @@ export function ApplicationsApp({
     status: ApplicationStatus,
   ) {
     if (status === application.status) return;
-
     updateApplication.mutate({
       applicationId: application.id,
       body: { status, expectedVersion: application.version },
     });
   }
 
-  const formPending =
-    createApplication.isPending || updateApplication.isPending;
-
   return (
     <AppShell
       headerAction={
-        <Button onClick={openCreate} size="sm">
-          <Plus data-icon="inline-start" />
-          Log application
-        </Button>
+        <SheetToolbar
+          connection={connection}
+          cycle={cycle}
+          importing={importApplications.isPending}
+          isLoading={connectionQuery.isLoading}
+          onCycleChange={(next) => {
+            setCycle(next);
+            cancelEdit();
+          }}
+          onDisconnect={() => disconnectGoogle.mutate()}
+          onImport={() => importApplications.mutate(cycle)}
+          tabs={tabsQuery.data?.tabs ?? []}
+        />
       }
       onSignOut={() => void signOut()}
-      rail={
-        <div className="flex flex-col gap-4">
-          <CycleSummary
-            applications={applications}
-            cycle={cycle}
-            isLoading={isLoading}
-          />
-          <GoogleConnectionCard
-            connection={connection}
-            cycle={cycle}
-            importing={importApplications.isPending}
-            isLoading={connectionQuery.isLoading}
-            onDisconnect={() => disconnectGoogle.mutate()}
-            onImport={() => importApplications.mutate(cycle)}
-          />
-        </div>
-      }
       title="Applications"
       userEmail={userEmail}
     >
       <div className="py-8 lg:py-10">
-        <header className="mb-6">
-          <h1 className="text-xl font-semibold tracking-tight">
-            {cycle} applications
-          </h1>
+        <header className="mb-7">
+          <h1 className="text-2xl font-semibold tracking-tight">{cycle}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            One row per application, numbered in the order you sent them.
+            Every application this cycle, numbered in the order you sent them.
           </p>
         </header>
 
-        {isLoading ? <TableSkeleton /> : null}
+        {isLoading ? (
+          <div aria-label="Loading applications" role="status">
+            {[0, 1, 2, 3, 4].map((index) => (
+              <Skeleton className="mb-2 h-11 w-full rounded-lg" key={index} />
+            ))}
+            <span className="sr-only">Loading applications</span>
+          </div>
+        ) : null}
 
         {!isLoading && isError ? (
           <p className="text-sm text-muted-foreground">
@@ -196,43 +248,31 @@ export function ApplicationsApp({
           </p>
         ) : null}
 
-        {!isLoading && !isError && applications.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              Nothing logged for {cycle} yet.
-            </p>
-            <Button className="mt-3" onClick={openCreate} size="sm">
-              Log your first application
-            </Button>
-          </div>
-        ) : null}
-
-        {!isLoading && applications.length > 0 ? (
-          <ApplicationsTable
-            applications={applications}
-            onEdit={openEdit}
-            onRetrySync={(applicationId) =>
-              syncApplication.mutate(applicationId)
-            }
-            onStatusChange={handleStatusChange}
-          />
+        {!isLoading && !isError ? (
+          <>
+            <ApplicationsTable
+              applications={applications}
+              creating={createApplication.isPending}
+              draft={draft}
+              editingId={editingId}
+              newDraft={newDraft}
+              nextNumber={nextNumber}
+              onCancelEdit={cancelEdit}
+              onCommitEdit={commitEdit}
+              onCommitNew={commitNew}
+              onDraftChange={setDraft}
+              onNewDraftChange={setNewDraft}
+              onRetrySync={(applicationId) =>
+                syncApplication.mutate(applicationId)
+              }
+              onStartEdit={startEdit}
+              onStatusChange={handleStatusChange}
+            />
+            <NewRowHint />
+            <CycleSummary applications={applications} />
+          </>
         ) : null}
       </div>
-
-      <ApplicationFormDialog
-        application={editing}
-        companySuggestions={companySuggestions}
-        cycle={cycle}
-        needsImport={needsImport}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        onSubmit={handleSubmit}
-        open={dialogOpen}
-        pending={formPending}
-        todayKey={todayKey}
-      />
     </AppShell>
   );
 }

@@ -12,7 +12,7 @@ export default async function Page() {
 
   return (
     <ApplicationsApp
-      cycle={DEFAULT_CYCLE}
+      defaultCycle={DEFAULT_CYCLE}
       timeZone={timeZone}
       userEmail={user.email ?? null}
     />
