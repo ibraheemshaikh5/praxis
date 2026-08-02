@@ -178,3 +178,82 @@ export type TaskMetricLinkPayload = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ApplicationStatus =
+  | "applied"
+  | "oa_received"
+  | "oa_completed"
+  | "interview"
+  | "offer"
+  | "accepted"
+  | "rejected"
+  | "ghosted";
+
+export type SheetSyncStatus = "pending" | "synced" | "failed";
+
+export type ApplicationPayload = {
+  id: string;
+  userId: string;
+  cycle: string;
+  applicationNumber: number;
+  company: string;
+  title: string;
+  status: ApplicationStatus;
+  notes: string | null;
+  appliedOn: string;
+  sheetSyncStatus: SheetSyncStatus;
+  sheetSyncedAt: string | null;
+  sheetSyncError: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApplicationsResponse = {
+  cycle: string;
+  applications: ApplicationPayload[];
+};
+
+export type ApplicationMutationResponse = {
+  application: ApplicationPayload;
+};
+
+export type CreateApplicationBody = {
+  cycle?: string;
+  company: string;
+  title: string;
+  status?: ApplicationStatus;
+  notes?: string | null;
+  appliedOn: string;
+};
+
+export type UpdateApplicationBody = {
+  company?: string;
+  title?: string;
+  status?: ApplicationStatus;
+  notes?: string | null;
+  appliedOn?: string;
+  expectedVersion: number;
+};
+
+export type GoogleConnectionPayload = {
+  connected: boolean;
+  googleEmail: string | null;
+  spreadsheetId: string | null;
+  lastImportedAt: string | null;
+};
+
+export type GoogleConnectionResponse = {
+  connection: GoogleConnectionPayload;
+};
+
+export type ImportApplicationsResponse = {
+  cycle: string;
+  imported: number;
+  /** Sheet rows that were missing a number and had one filled in. */
+  repaired: number;
+};
+
+export type SpreadsheetTabsResponse = {
+  tabs: string[];
+};
