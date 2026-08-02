@@ -3,7 +3,7 @@
 - [ ] Daily planner for managing day-to-day tasks.
 - [ ] Long-running goals and progress tracking.
 - [ ] Life areas and improvement tracking.
-- [ ] Internship application tracker with Google Sheets support.
+- [x] Internship application tracker with Google Sheets support.
 - [ ] Literature tracker for books, thoughts, questions, and quizzes.
 - [ ] Article tracker with notes, mind maps, questions, and quizzes.
 - [ ] Informative YouTube video tracker.
