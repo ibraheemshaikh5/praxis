@@ -90,29 +90,42 @@ export function resolveHeaderMap(headerRow: string[]): SheetHeaderMap {
 }
 
 /**
- * Produces a full-width row so every value lands under its own header. Columns
- * the tracker does not own stay empty rather than being shifted.
+ * The exact spelling each status already has in a given tab, keyed by its
+ * normalized form. The tabs are hand-kept and disagree with each other, so a
+ * write reuses whatever wording that tab already uses rather than imposing
+ * ours; our label is only a fallback for a status the tab has never held.
  */
-export function buildRowValues(
-  headerMap: SheetHeaderMap,
-  width: number,
-  application: SheetApplication,
-): string[] {
-  const cells = cellValues(headerMap, application);
-  const span = Math.max(width, ...cells.map(([index]) => index + 1), 1);
-  const row = new Array<string>(span).fill("");
+export type SheetStatusVocabulary = Map<string, string>;
 
-  for (const [index, value] of cells) {
-    row[index] = value;
+export function resolveStatusVocabulary(
+  headerMap: SheetHeaderMap,
+  rows: string[][],
+): SheetStatusVocabulary {
+  const vocabulary: SheetStatusVocabulary = new Map();
+  if (headerMap.status === null) return vocabulary;
+
+  for (const row of rows) {
+    const raw = cell(row, headerMap.status).trim();
+    if (!raw) continue;
+    const status = parseStatusLabel(raw);
+    if (status && !vocabulary.has(status)) vocabulary.set(status, raw);
   }
 
-  return row;
+  return vocabulary;
+}
+
+export function sheetStatusLabel(
+  status: ApplicationStatus,
+  vocabulary?: SheetStatusVocabulary,
+) {
+  return vocabulary?.get(status) ?? formatStatusLabel(status);
 }
 
 /** The subset of cells a given update touches, keyed by column index. */
 export function cellValues(
   headerMap: SheetHeaderMap,
   application: Partial<SheetApplication>,
+  vocabulary?: SheetStatusVocabulary,
 ): Array<[number, string]> {
   const cells: Array<[number, string]> = [];
 
@@ -134,12 +147,72 @@ export function cellValues(
     "status",
     application.status === undefined
       ? undefined
-      : formatStatusLabel(application.status),
+      : sheetStatusLabel(application.status, vocabulary),
   );
   push("notes", application.notes);
   push("appliedOn", application.appliedOn);
 
   return cells;
+}
+
+/**
+ * The 1-based row a new application belongs in. These sheets carry banded
+ * formatting hundreds of rows past the last entry, so appending would insert a
+ * fresh row and leave those prepared rows stranded; the first one whose tracked
+ * columns are all blank is the row the owner expects to see filled.
+ */
+export function findWriteRowNumber(
+  headerMap: SheetHeaderMap,
+  rows: string[][],
+): number {
+  for (let index = 1; index < rows.length; index += 1) {
+    if (isBlankRow(headerMap, rows[index] ?? [])) return index + 1;
+  }
+
+  // values.get trims trailing blanks, so the row after the used range is next.
+  return Math.max(rows.length, 1) + 1;
+}
+
+/** 1-based rows carrying an application that was never given a number. */
+export function findUnnumberedRows(
+  headerMap: SheetHeaderMap,
+  rows: string[][],
+): number[] {
+  const unnumbered: number[] = [];
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index] ?? [];
+    if (isBlankRow(headerMap, row)) continue;
+    if (readNumber(headerMap, row) === null) unnumbered.push(index + 1);
+  }
+
+  return unnumbered;
+}
+
+export function highestNumber(headerMap: SheetHeaderMap, rows: string[][]) {
+  let highest = 0;
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const value = readNumber(headerMap, rows[index] ?? []);
+    if (value !== null) highest = Math.max(highest, value);
+  }
+
+  return highest;
+}
+
+function readNumber(headerMap: SheetHeaderMap, row: string[]) {
+  const raw = cell(row, headerMap.number).trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function isBlankRow(headerMap: SheetHeaderMap, row: string[]) {
+  return (
+    !cell(row, headerMap.number).trim() &&
+    !cell(row, headerMap.company).trim() &&
+    !cell(row, headerMap.title).trim()
+  );
 }
 
 export function parseSheetRows(
@@ -222,20 +295,14 @@ export class SheetsClient {
     return payload.values ?? [];
   }
 
-  async readColumn(tab: string, index: number): Promise<string[]> {
-    const letter = columnLetter(index);
-    const payload = await this.request<{ values?: string[][] }>(
-      `/values/${encodeURIComponent(`${quoteTab(tab)}!${letter}1:${letter}`)}`,
-    );
-    return (payload.values ?? []).map((row) => row[0] ?? "");
-  }
+  async listTabs(): Promise<string[]> {
+    const payload = await this.request<{
+      sheets?: Array<{ properties?: { title?: string } }>;
+    }>("?fields=sheets.properties.title");
 
-  async appendRow(tab: string, values: string[]) {
-    await this.request(
-      `/values/${encodeURIComponent(`${quoteTab(tab)}!A1`)}:append` +
-        "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
-      { method: "POST", body: { values: [values] } },
-    );
+    return (payload.sheets ?? [])
+      .map((sheet) => sheet.properties?.title)
+      .filter((title): title is string => Boolean(title));
   }
 
   /** One range per cell so untouched columns and their formulas survive. */

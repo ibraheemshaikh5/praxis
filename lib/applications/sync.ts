@@ -10,10 +10,13 @@ import { getApplicationsService } from "./runtime";
 import type { SheetSyncOutcome } from "./service";
 import {
   SheetsClient,
-  buildRowValues,
   cellValues,
+  findUnnumberedRows,
+  findWriteRowNumber,
+  highestNumber,
   parseSheetRows,
   resolveHeaderMap,
+  resolveStatusVocabulary,
 } from "./sheets";
 
 type SheetsContext = {
@@ -47,6 +50,72 @@ export async function resolveSheetsContext(
   };
 }
 
+export async function listSpreadsheetTabs(userId: string) {
+  const context = await resolveSheetsContext(userId);
+  if (!context) throw new GoogleNotConnectedError();
+  return context.client.listTabs();
+}
+
+/**
+ * Brings the tab's own numbering back into shape before anything reads from it:
+ * every row carrying an application but no "#" is given the next number, in
+ * sheet order. Without this a new application could reuse a number that an
+ * existing row is silently entitled to.
+ *
+ * Returns the parsed rows so callers can import without re-reading.
+ */
+export async function reconcileNumbering(
+  userId: string,
+  cycle: string,
+  context: SheetsContext,
+) {
+  const rows = await context.client.readTab(cycle);
+  const headerMap = resolveHeaderMap(rows[0] ?? []);
+  const unnumbered = findUnnumberedRows(headerMap, rows);
+
+  if (unnumbered.length > 0 && headerMap.number !== null) {
+    let next = highestNumber(headerMap, rows) + 1;
+
+    for (const rowNumber of unnumbered) {
+      await context.client.updateCells(cycle, rowNumber, [
+        [headerMap.number, String(next)],
+      ]);
+      // Keep the in-memory copy in step so the parse below sees the new number.
+      const row = (rows[rowNumber - 1] ??= []);
+      row[headerMap.number] = String(next);
+      next += 1;
+    }
+  }
+
+  return { rows, headerMap, repaired: unnumbered.length };
+}
+
+/**
+ * Run before assigning a number to a new application: repairs the tab's own
+ * numbering and pulls the result into Postgres, so `max + 1` accounts for rows
+ * that only exist in the sheet. Best effort — a Google outage must not stop the
+ * owner from logging an application.
+ */
+export async function reconcileBeforeCreate(userId: string, cycle: string) {
+  try {
+    const context = await resolveSheetsContext(userId);
+    if (!context) return;
+
+    const { rows, headerMap } = await reconcileNumbering(
+      userId,
+      cycle,
+      context,
+    );
+    await getApplicationsService().importRows(
+      userId,
+      cycle,
+      parseSheetRows(headerMap, rows.slice(1)),
+    );
+  } catch (error) {
+    console.error("Could not reconcile sheet numbering before create", error);
+  }
+}
+
 /**
  * Best-effort push of one application into its cycle tab. Postgres has already
  * committed by the time this runs, so a failure is recorded on the row rather
@@ -65,36 +134,33 @@ export async function pushApplicationToSheet(
 
     const tab = application.cycle;
     const rows = await context.client.readTab(tab);
-    const headerRow = rows[0] ?? [];
-    const headerMap = resolveHeaderMap(headerRow);
+    const headerMap = resolveHeaderMap(rows[0] ?? []);
+    const vocabulary = resolveStatusVocabulary(headerMap, rows);
 
-    const sheetApplication = {
-      applicationNumber: application.applicationNumber,
-      company: application.company,
-      title: application.title,
-      status: application.status,
-      notes: application.notes,
-      appliedOn: application.appliedOn,
-    };
+    const cells = cellValues(
+      headerMap,
+      {
+        applicationNumber: application.applicationNumber,
+        company: application.company,
+        title: application.title,
+        status: application.status,
+        notes: application.notes,
+        appliedOn: application.appliedOn,
+      },
+      vocabulary,
+    );
 
-    const rowNumber = findRowNumber(
+    const existingRow = findRowNumber(
       rows,
       headerMap.number,
       application.applicationNumber,
     );
 
-    if (rowNumber === null) {
-      await context.client.appendRow(
-        tab,
-        buildRowValues(headerMap, headerRow.length, sheetApplication),
-      );
-    } else {
-      await context.client.updateCells(
-        tab,
-        rowNumber,
-        cellValues(headerMap, sheetApplication),
-      );
-    }
+    await context.client.updateCells(
+      tab,
+      existingRow ?? findWriteRowNumber(headerMap, rows),
+      cells,
+    );
 
     return { status: "synced" };
   } catch (error) {
@@ -106,15 +172,18 @@ export async function importCycleFromSheet(userId: string, cycle: string) {
   const context = await resolveSheetsContext(userId);
   if (!context) throw new GoogleNotConnectedError();
 
-  const rows = await context.client.readTab(cycle);
-  const headerMap = resolveHeaderMap(rows[0] ?? []);
+  const { rows, headerMap, repaired } = await reconcileNumbering(
+    userId,
+    cycle,
+    context,
+  );
   const parsed = parseSheetRows(headerMap, rows.slice(1));
 
   const service = getApplicationsService();
   const result = await service.importRows(userId, cycle, parsed);
   await service.markImported(userId);
 
-  return { ...result, cycle };
+  return { ...result, cycle, repaired };
 }
 
 /** Row numbers are 1-based and include the header row. */

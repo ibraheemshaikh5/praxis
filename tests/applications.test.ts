@@ -8,12 +8,16 @@ import {
   updateApplicationSchema,
 } from "@/lib/applications/contracts";
 import {
-  buildRowValues,
   cellValues,
   columnLetter,
+  findUnnumberedRows,
+  findWriteRowNumber,
+  highestNumber,
   parseSheetDate,
   parseSheetRows,
   resolveHeaderMap,
+  resolveStatusVocabulary,
+  sheetStatusLabel,
 } from "@/lib/applications/sheets";
 import {
   APPLICATION_STATUS_LABELS,
@@ -38,10 +42,10 @@ const S27_HEADERS = [
 ];
 
 describe("application contracts", () => {
-  it("trims text and upper-cases the cycle", () => {
+  it("trims text and keeps the cycle verbatim", () => {
     expect(
       createApplicationSchema.parse({
-        cycle: "s27",
+        cycle: "S27",
         company: "  Ramp  ",
         title: "  Software Engineer Intern ",
         appliedOn: "2026-08-02",
@@ -55,16 +59,35 @@ describe("application contracts", () => {
     expect(applicationsQuerySchema.parse({})).toEqual({ cycle: undefined });
   });
 
-  it("rejects malformed cycles, dates, and empty updates", () => {
+  it("accepts any tab name as a cycle", () => {
+    // The owner's real tabs; a cycle names one verbatim, casing and all.
+    for (const cycle of [
+      "S27",
+      "F25/W26 Internship",
+      "YC Automator Batch 1",
+      "Sheet6",
+    ]) {
+      expect(
+        createApplicationSchema.parse({
+          cycle,
+          company: "Ramp",
+          title: "Intern",
+          appliedOn: "2026-08-02",
+        }),
+      ).toMatchObject({ cycle });
+    }
+
     expect(() =>
       createApplicationSchema.parse({
-        cycle: "Summer2027",
+        cycle: "  ",
         company: "Ramp",
         title: "Intern",
         appliedOn: "2026-08-02",
       }),
     ).toThrow();
+  });
 
+  it("rejects invalid dates and empty updates", () => {
     expect(() =>
       createApplicationSchema.parse({
         company: "Ramp",
@@ -154,22 +177,22 @@ describe("row building", () => {
   };
 
   it("places every value under its own header", () => {
-    expect(buildRowValues(headerMap, S27_HEADERS.length, application)).toEqual([
-      "42",
-      "Ramp",
-      "Software Engineer Intern",
-      "OA Received",
-      "Referral from Priya",
-      "2026-08-02",
+    expect(cellValues(headerMap, application)).toEqual([
+      [0, "42"],
+      [1, "Ramp"],
+      [2, "Software Engineer Intern"],
+      [3, "OA Received"],
+      [4, "Referral from Priya"],
+      [5, "2026-08-02"],
     ]);
   });
 
-  it("pads to the header width so trailing columns are not shifted", () => {
+  it("leaves columns the tracker does not own untouched", () => {
     const wide = resolveHeaderMap([...S27_HEADERS, "Resume", "Contact"]);
-    const row = buildRowValues(wide, 8, application);
+    const columns = cellValues(wide, application).map(([index]) => index);
 
-    expect(row).toHaveLength(8);
-    expect(row.slice(6)).toEqual(["", ""]);
+    expect(columns).not.toContain(6);
+    expect(columns).not.toContain(7);
   });
 
   it("emits only the cells an update touches", () => {
@@ -185,6 +208,82 @@ describe("row building", () => {
     expect(columnLetter(26)).toBe("AA");
     expect(columnLetter(27)).toBe("AB");
     expect(columnLetter(51)).toBe("AZ");
+  });
+});
+
+describe("write targeting", () => {
+  const headerMap = resolveHeaderMap(S27_HEADERS);
+
+  it("fills the first blank row rather than the end of the sheet", () => {
+    // values.get trims trailing blanks, so a full block means "next row".
+    expect(
+      findWriteRowNumber(headerMap, [
+        S27_HEADERS,
+        ["1", "Ramp", "SWE Intern", "Applied", "", "2026-08-01"],
+        ["2", "Figma", "PM Intern", "Applied", "", "2026-08-02"],
+      ]),
+    ).toBe(4);
+
+    // A hole left mid-sheet is the row the owner expects to be filled.
+    expect(
+      findWriteRowNumber(headerMap, [
+        S27_HEADERS,
+        ["1", "Ramp", "SWE Intern"],
+        ["", "", ""],
+        ["3", "Figma", "PM Intern"],
+      ]),
+    ).toBe(3);
+  });
+
+  it("writes below the header when the sheet is empty", () => {
+    expect(findWriteRowNumber(headerMap, [S27_HEADERS])).toBe(2);
+    expect(findWriteRowNumber(headerMap, [])).toBe(2);
+  });
+
+  it("finds rows carrying an application but no number", () => {
+    const rows = [
+      S27_HEADERS,
+      ["1", "Ramp", "SWE Intern"],
+      ["", "Figma", "PM Intern"],
+      ["", "", ""],
+      ["", "Stripe", "Intern"],
+    ];
+
+    expect(findUnnumberedRows(headerMap, rows)).toEqual([3, 5]);
+    expect(highestNumber(headerMap, rows)).toBe(1);
+  });
+});
+
+describe("status vocabulary", () => {
+  const headerMap = resolveHeaderMap(S27_HEADERS);
+
+  it("reuses the spelling the tab already uses", () => {
+    const vocabulary = resolveStatusVocabulary(headerMap, [
+      S27_HEADERS,
+      ["1", "Ramp", "SWE", "OA Recieved"],
+      ["2", "Figma", "PM", "applied"],
+    ]);
+
+    expect(sheetStatusLabel("oa_received", vocabulary)).toBe("OA Recieved");
+    expect(sheetStatusLabel("applied", vocabulary)).toBe("applied");
+    // Never used in this tab, so our own label is the only sensible choice.
+    expect(sheetStatusLabel("interview", vocabulary)).toBe("Interview");
+  });
+
+  it("writes the sheet's wording through cellValues", () => {
+    const vocabulary = resolveStatusVocabulary(headerMap, [
+      S27_HEADERS,
+      ["1", "Ramp", "SWE", "OA Recieved"],
+    ]);
+
+    expect(
+      cellValues(headerMap, { status: "oa_received" }, vocabulary),
+    ).toEqual([[3, "OA Recieved"]]);
+  });
+
+  it("falls back to our labels when the tab has no history", () => {
+    const vocabulary = resolveStatusVocabulary(headerMap, [S27_HEADERS]);
+    expect(sheetStatusLabel("rejected", vocabulary)).toBe("Rejected");
   });
 });
 
