@@ -1,12 +1,7 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 
-import * as schema from "@/lib/db/schema";
 import { DailyPlannerService } from "@/lib/daily-planner/service";
-
-const databaseUrl = process.env.TEST_DATABASE_URL;
-const describeDatabase = databaseUrl ? describe : describe.skip;
+import { describeDatabase, useTestDatabase } from "./support/database";
 
 // Distinct from the daily planner suite so parallel test files cannot delete
 // each other's fixtures.
@@ -17,8 +12,7 @@ const WEEK_START = "2026-07-27";
 const WEEK_END = "2026-08-02";
 
 describeDatabase("goal metrics database integration", () => {
-  const client = postgres(databaseUrl!, { max: 1, prepare: false });
-  const db = drizzle(client, { schema });
+  const { client, db } = useTestDatabase([USER_ONE, USER_TWO]);
   const service = new DailyPlannerService(db);
 
   beforeAll(async () => {
@@ -39,25 +33,6 @@ describeDatabase("goal metrics database integration", () => {
         ) as "trigramIndex"
     `;
     expect(result).toEqual({ rlsTables: 2, trigramIndex: 1 });
-  });
-
-  beforeEach(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client`
-      insert into auth.users (id)
-      values (${USER_ONE}::uuid), (${USER_TWO}::uuid)
-    `;
-  });
-
-  afterAll(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client.end();
   });
 
   async function completeTask(title: string, plannerDate?: string) {

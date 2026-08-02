@@ -1,23 +1,17 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 
-import * as schema from "@/lib/db/schema";
 import { DailyPlannerService } from "@/lib/daily-planner/service";
 import type {
   AttachmentStorage,
   UploadTarget,
 } from "@/lib/daily-planner/storage";
-
-const databaseUrl = process.env.TEST_DATABASE_URL;
-const describeDatabase = databaseUrl ? describe : describe.skip;
+import { describeDatabase, useTestDatabase } from "./support/database";
 
 const USER_ONE = "00000000-0000-4000-8000-000000000001";
 const USER_TWO = "00000000-0000-4000-8000-000000000002";
 
 describeDatabase("daily planner database integration", () => {
-  const client = postgres(databaseUrl!, { max: 1, prepare: false });
-  const db = drizzle(client, { schema });
+  const { client, db } = useTestDatabase([USER_ONE, USER_TWO]);
   const service = new DailyPlannerService(db);
 
   beforeAll(async () => {
@@ -43,25 +37,6 @@ describeDatabase("daily planner database integration", () => {
         ) as bucket
     `;
     expect(result).toEqual({ rlsTables: 4, bucket: 1 });
-  });
-
-  beforeEach(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client`
-      insert into auth.users (id)
-      values (${USER_ONE}::uuid), (${USER_TWO}::uuid)
-    `;
-  });
-
-  afterAll(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client.end();
   });
 
   it("handles task lifecycle, move history, inbox, and stale writes", async () => {
