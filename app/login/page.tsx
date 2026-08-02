@@ -17,7 +17,7 @@ export default function LoginPage() {
         aria-hidden
         className="pointer-events-none absolute inset-0 planner-wash"
       />
-      <div className="relative z-10">
+      <div className="relative z-10 w-full">
         <LoginForm />
       </div>
     </main>
