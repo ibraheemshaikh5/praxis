@@ -9,6 +9,7 @@ import type {
   GoogleConnectionResponse,
   ImportApplicationsResponse,
   MetricsResponse,
+  PageNoteResponse,
   PlannerResponse,
   ReorderPlannerBody,
   ScheduleTaskBody,
@@ -19,6 +20,7 @@ import type {
   UpdateApplicationBody,
   UpdateMetricBody,
   UpdateTaskBody,
+  UpsertPageNoteBody,
 } from "./types";
 
 export class ApiError extends Error {
@@ -101,6 +103,18 @@ export function fetchPlanner(params: {
   });
 
   return request<PlannerResponse>(`/api/planner?${query}`);
+}
+
+export function fetchPageNote(pageKey: string) {
+  const query = new URLSearchParams({ key: pageKey });
+  return request<PageNoteResponse>(`/api/page-note?${query}`);
+}
+
+export function upsertPageNote(body: UpsertPageNoteBody) {
+  return request<Required<PageNoteResponse>>("/api/page-note", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }
 
 export function createTask(body: CreateTaskBody) {

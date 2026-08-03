@@ -354,6 +354,34 @@ export const taskMetricLinks = pgTable(
   ],
 );
 
+export const pageNotes = pgTable(
+  "page_notes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    pageKey: text("page_key").notNull(),
+    content: text("content").default("").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("page_notes_user_page_key").on(table.userId, table.pageKey),
+    foreignKey({
+      name: "page_notes_user_id_profiles_id_fk",
+      columns: [table.userId],
+      foreignColumns: [profiles.id],
+    }).onDelete("cascade"),
+    check(
+      "page_notes_page_key_check",
+      sql`length(${table.pageKey}) between 1 and 500 and ${table.pageKey} like '/%'`,
+    ),
+    check(
+      "page_notes_content_length_check",
+      sql`length(${table.content}) <= 50000`,
+    ),
+    index("page_notes_user_updated_idx").on(table.userId, table.updatedAt),
+  ],
+);
+
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
@@ -366,3 +394,5 @@ export type Metric = typeof metrics.$inferSelect;
 export type NewMetric = typeof metrics.$inferInsert;
 export type TaskMetricLink = typeof taskMetricLinks.$inferSelect;
 export type NewTaskMetricLink = typeof taskMetricLinks.$inferInsert;
+export type PageNote = typeof pageNotes.$inferSelect;
+export type NewPageNote = typeof pageNotes.$inferInsert;
