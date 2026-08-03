@@ -18,7 +18,7 @@ export function PlannerViewToggle({
   return (
     <div
       aria-label="Planner view"
-      className="inline-flex w-full rounded-xl bg-muted p-0.5"
+      className="inline-flex shrink-0 rounded-xl bg-muted p-0.5"
       role="group"
     >
       <ViewButton
@@ -50,9 +50,10 @@ function ViewButton({
 }) {
   return (
     <Button
+      aria-label={label}
       aria-pressed={active}
       className={cn(
-        "h-8 flex-1 gap-1.5 rounded-[0.625rem] px-2.5 text-xs shadow-none",
+        "h-8 gap-1.5 rounded-[0.625rem] px-2.5 text-xs shadow-none",
         active
           ? "bg-background text-foreground hover:bg-background"
           : "text-muted-foreground hover:text-foreground",
@@ -62,7 +63,7 @@ function ViewButton({
       variant="ghost"
     >
       <span className="[&>svg]:size-3.5">{icon}</span>
-      {label}
+      <span className="hidden sm:inline">{label}</span>
     </Button>
   );
 }

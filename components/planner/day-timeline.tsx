@@ -6,7 +6,10 @@ import { DaySection } from "@/components/planner/day-section";
 import { TimeGrid } from "@/components/planner/time-grid";
 import { usePublishTimelineNav } from "@/components/planner/timeline-nav";
 import { WeekSelector } from "@/components/planner/week-selector";
-import type { PlannerView } from "@/components/planner/planner-view-toggle";
+import {
+  PlannerViewToggle,
+  type PlannerView,
+} from "@/components/planner/planner-view-toggle";
 import { usePlannerPages } from "@/hooks/use-planner";
 import { useTimelineScroll } from "@/hooks/use-timeline-scroll";
 import type { PlannerEntryPayload } from "@/lib/api/types";
@@ -47,6 +50,7 @@ export function DayTimeline({
   onSchedule,
   onToggle,
   onUpdate,
+  onViewChange,
   schedulePendingTaskId,
   timeZone,
   todayKey,
@@ -70,6 +74,7 @@ export function DayTimeline({
     title?: string;
     notes?: string | null;
   }) => void;
+  onViewChange: (view: PlannerView) => void;
   schedulePendingTaskId?: string | null;
   timeZone: string;
   todayKey: PlannerDateKey;
@@ -163,16 +168,19 @@ export function DayTimeline({
 
   return (
     <div className="flex h-(--planner-pane) min-h-0 flex-col">
-      <div className="shrink-0 border-b border-border/60 bg-background pb-3 pt-2">
-        <WeekSelector
-          entriesByDay={entriesByDay}
-          onSelect={requestDate}
-          onShiftWeek={(amount) =>
-            requestDate(addPlannerDaysToKey(selectedDate, amount))
-          }
-          selectedDate={selectedDate}
-          todayKey={todayKey}
-        />
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-background pb-3 pt-2">
+        <div className="min-w-0 flex-1">
+          <WeekSelector
+            entriesByDay={entriesByDay}
+            onSelect={requestDate}
+            onShiftWeek={(amount) =>
+              requestDate(addPlannerDaysToKey(selectedDate, amount))
+            }
+            selectedDate={selectedDate}
+            todayKey={todayKey}
+          />
+        </div>
+        <PlannerViewToggle onChange={onViewChange} view={view} />
       </div>
 
       <PlannerDayFeed

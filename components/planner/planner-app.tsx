@@ -6,10 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DayTimeline } from "@/components/planner/day-timeline";
 import { TodayButton } from "@/components/planner/jump-to-today";
 import { MetricsRail } from "@/components/planner/metrics-rail";
-import {
-  PlannerViewToggle,
-  type PlannerView,
-} from "@/components/planner/planner-view-toggle";
+import type { PlannerView } from "@/components/planner/planner-view-toggle";
 import { TimelineNavProvider } from "@/components/planner/timeline-nav";
 import { AppShell } from "@/components/shell/app-shell";
 import {
@@ -173,12 +170,7 @@ export function PlannerApp({
         <AppShell
           headerAction={<TodayButton />}
           onSignOut={() => void signOut()}
-          rail={
-            <div className="space-y-8">
-              <PlannerViewToggle onChange={changeView} view={view} />
-              <MetricsRail todayKey={todayKey} />
-            </div>
-          }
+          rail={<MetricsRail todayKey={todayKey} />}
           title="Daily planner"
           userEmail={userEmail}
         >
@@ -189,6 +181,7 @@ export function PlannerApp({
             onSchedule={handleSchedule}
             onToggle={handleToggle}
             onUpdate={handleUpdate}
+            onViewChange={changeView}
             schedulePendingTaskId={
               scheduleTask.isPending ? scheduleTask.variables?.taskId : null
             }
