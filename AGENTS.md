@@ -7,6 +7,22 @@
 - Do not expand work beyond the current vertical slice.
 - Keep proposals distinct from decisions made by the project owner.
 
+## Databases
+
+- Production is never a development or test target. Development uses the dev
+  Supabase project or the local stack; production holds the owner's real data.
+- Every database outside loopback declares itself in `praxis.environment`.
+  Guards read that back and refuse a database that does not answer, so an
+  unrecognised connection string fails closed rather than being trusted.
+- Integration tests reach a database only through `tests/support/database.ts`.
+  A suite that opens its own connection skips the guard.
+- Migrations reach production only through `pnpm db:migrate:prod`, and only
+  after the same migration has been applied to the dev project.
+- Agents do not run migrations, resets, or pushes against a hosted database,
+  and do not set `PRAXIS_CONFIRM_PRODUCTION`. Those are the owner's to run.
+- Agents do not edit `.env.local` or any other file holding real credentials.
+  Propose the change and let the owner make it.
+
 ## Interface copy
 
 - Ship only the text the interface needs to work: labels, values, states,

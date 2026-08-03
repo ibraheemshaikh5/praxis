@@ -4,6 +4,13 @@ import * as React from "react";
 
 import type { PlannerDateKey } from "@/lib/planner/dates";
 
+function sectionScrollTop(container: HTMLElement, section: HTMLElement) {
+  return (
+    container.scrollTop +
+    (section.getBoundingClientRect().top - container.getBoundingClientRect().top)
+  );
+}
+
 /**
  * Keeps the timeline scrollport stable when pages are prepended, and
  * performs the one-time instant jump to today after the first page settles.
@@ -86,7 +93,7 @@ export function useTimelineScroll({
 
     container.scrollTop = getTodayScrollTop
       ? getTodayScrollTop(container, todayEl)
-      : todayEl.offsetTop;
+      : sectionScrollTop(container, todayEl);
     isAnchoredRef.current = true;
   }, [getTodayScrollTop, loadedToday]);
 
@@ -233,7 +240,7 @@ export function useTimelineScroll({
 
     const top = getTodayScrollTop
       ? getTodayScrollTop(container, todayEl)
-      : todayEl.offsetTop;
+      : sectionScrollTop(container, todayEl);
 
     if (reduceMotion) {
       container.scrollTop = top;

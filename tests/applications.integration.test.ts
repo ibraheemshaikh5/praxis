@@ -1,13 +1,8 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 
 import { ApplicationsService } from "@/lib/applications/service";
 import { ConflictError, NotFoundError } from "@/lib/daily-planner/errors";
-import * as schema from "@/lib/db/schema";
-
-const databaseUrl = process.env.TEST_DATABASE_URL;
-const describeDatabase = databaseUrl ? describe : describe.skip;
+import { describeDatabase, useTestDatabase } from "./support/database";
 
 // Distinct from the planner and metrics suites so parallel test files cannot
 // delete each other's fixtures.
@@ -17,8 +12,7 @@ const CYCLE = "S27";
 const APPLIED_ON = "2026-08-02";
 
 describeDatabase("internship applications database integration", () => {
-  const client = postgres(databaseUrl!, { max: 1, prepare: false });
-  const db = drizzle(client, { schema });
+  const { client, db } = useTestDatabase([USER_ONE, USER_TWO]);
   const service = new ApplicationsService(db);
 
   beforeAll(async () => {
@@ -39,25 +33,6 @@ describeDatabase("internship applications database integration", () => {
     `;
     // The refresh token must be unreachable from a browser session.
     expect(result).toEqual({ rlsTables: 2, grants: 0 });
-  });
-
-  beforeEach(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client`
-      insert into auth.users (id)
-      values (${USER_ONE}::uuid), (${USER_TWO}::uuid)
-    `;
-  });
-
-  afterAll(async () => {
-    await client`
-      delete from auth.users
-      where id in (${USER_ONE}::uuid, ${USER_TWO}::uuid)
-    `;
-    await client.end();
   });
 
   function log(userId: string, company: string, cycle = CYCLE) {

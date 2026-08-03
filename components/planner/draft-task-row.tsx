@@ -26,11 +26,23 @@ const colorClasses: Record<TaskColorKey, string> = {
   ink: "bg-foreground",
 };
 
+function minutesToTimeInput(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
 export function DraftTaskRow({
+  hideScheduleNext = false,
+  initialDuration = 30,
+  initialStartMinutes = null,
   onCommit,
   onDiscard,
   pending = false,
 }: {
+  hideScheduleNext?: boolean;
+  initialDuration?: number;
+  initialStartMinutes?: number | null;
   onCommit: (input: {
     title: string;
     notes: string | null;
@@ -50,8 +62,10 @@ export function DraftTaskRow({
   const [iconKey, setIconKey] = React.useState<TaskIconKey>(DEFAULT_TASK_ICON);
   const [colorKey, setColorKey] =
     React.useState<TaskColorKey>(DEFAULT_TASK_COLOR);
-  const [startTime, setStartTime] = React.useState("");
-  const [duration, setDuration] = React.useState(30);
+  const [startTime, setStartTime] = React.useState(
+    initialStartMinutes === null ? "" : minutesToTimeInput(initialStartMinutes),
+  );
+  const [duration, setDuration] = React.useState(initialDuration);
   const [scheduleNext, setScheduleNext] = React.useState(false);
   const notesRef = React.useRef<HTMLTextAreaElement>(null);
   const committedRef = React.useRef(false);
@@ -221,15 +235,17 @@ export function DraftTaskRow({
               <option value={120}>2 hours</option>
             </select>
           </label>
-          <label className="ml-auto flex min-h-7 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-xs text-muted-foreground hover:text-foreground">
-            <Checkbox
-              aria-label="Schedule after the latest task"
-              checked={scheduleNext}
-              disabled={pending}
-              onCheckedChange={(checked) => setScheduleNext(checked === true)}
-            />
-            Schedule next
-          </label>
+          {hideScheduleNext ? null : (
+            <label className="ml-auto flex min-h-7 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <Checkbox
+                aria-label="Schedule after the latest task"
+                checked={scheduleNext}
+                disabled={pending}
+                onCheckedChange={(checked) => setScheduleNext(checked === true)}
+              />
+              Schedule next
+            </label>
+          )}
         </div>
       </div>
     </article>

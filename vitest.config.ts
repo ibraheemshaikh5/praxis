@@ -22,6 +22,8 @@ export default defineConfig({
       reporter: ["text", "json-summary"],
     },
     env: {
+      PRAXIS_PRODUCTION_PROJECT_REF:
+        process.env.PRAXIS_PRODUCTION_PROJECT_REF ?? "",
       TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
     },
     environment: "node",

@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, ListTodo } from "lucide-react";
 
 import { DaySection } from "@/components/planner/day-section";
 import { TimeGrid } from "@/components/planner/time-grid";
 import { usePublishTimelineNav } from "@/components/planner/timeline-nav";
 import { WeekSelector } from "@/components/planner/week-selector";
-import { Button } from "@/components/ui/button";
+import type { PlannerView } from "@/components/planner/planner-view-toggle";
 import { usePlannerPages } from "@/hooks/use-planner";
 import { useTimelineScroll } from "@/hooks/use-timeline-scroll";
 import type { PlannerEntryPayload } from "@/lib/api/types";
@@ -23,10 +22,6 @@ import {
   zonedDateTimeToIso,
 } from "@/lib/planner/timeline";
 import { cn } from "@/lib/utils";
-
-const VIEW_STORAGE_KEY = "praxis-planner-view";
-
-type PlannerView = "list" | "calendar";
 
 type CreateInput = {
   dateKey: PlannerDateKey;
@@ -55,6 +50,7 @@ export function DayTimeline({
   schedulePendingTaskId,
   timeZone,
   todayKey,
+  view,
 }: {
   onCreate: (input: CreateInput) => Promise<void>;
   onDelete: (entry: PlannerEntryPayload) => void;
@@ -77,9 +73,9 @@ export function DayTimeline({
   schedulePendingTaskId?: string | null;
   timeZone: string;
   todayKey: PlannerDateKey;
+  view: PlannerView;
 }) {
   const todayPage = React.useMemo(() => plannerPageIndex(todayKey), [todayKey]);
-  const [view, setView] = React.useState<PlannerView>("list");
   const [selectedDate, setSelectedDate] = React.useState(todayKey);
   const [scrollTarget, setScrollTarget] = React.useState<{
     date: PlannerDateKey;
@@ -89,13 +85,17 @@ export function DayTimeline({
     todayPage - 1,
     todayPage,
   ]);
+  const previousView = React.useRef(view);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- Restore the browser-local view preference after hydration. */
   React.useEffect(() => {
-    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (stored === "calendar") setView("calendar");
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    if (previousView.current === view) return;
+    previousView.current = view;
+    setSelectedDate(todayKey);
+    setScrollTarget((current) => ({
+      date: todayKey,
+      request: current.request + 1,
+    }));
+  }, [todayKey, view]);
 
   const { entriesByDay, loadedPages } = usePlannerPages(pageIndices);
   const dayKeys = React.useMemo(
@@ -144,19 +144,6 @@ export function DayTimeline({
     [ensureDateLoaded],
   );
 
-  const changeView = React.useCallback(
-    (nextView: PlannerView) => {
-      setView(nextView);
-      window.localStorage.setItem(VIEW_STORAGE_KEY, nextView);
-      setSelectedDate(todayKey);
-      setScrollTarget((current) => ({
-        date: todayKey,
-        request: current.request + 1,
-      }));
-    },
-    [todayKey],
-  );
-
   const scheduleAtTime = React.useCallback(
     (input: ScheduleAtTimeInput) => {
       const duration = clampTimelineDuration(input.start, input.duration);
@@ -176,27 +163,7 @@ export function DayTimeline({
 
   return (
     <div className="flex h-(--planner-pane) min-h-0 flex-col">
-      <div className="shrink-0 border-b border-border/60 bg-background pb-3">
-        <div className="flex items-center justify-end py-2">
-          <div
-            aria-label="Planner view"
-            className="inline-flex rounded-xl bg-muted p-0.5"
-            role="group"
-          >
-            <ViewButton
-              active={view === "list"}
-              icon={<ListTodo />}
-              label="List"
-              onClick={() => changeView("list")}
-            />
-            <ViewButton
-              active={view === "calendar"}
-              icon={<CalendarDays />}
-              label="Calendar"
-              onClick={() => changeView("calendar")}
-            />
-          </div>
-        </div>
+      <div className="shrink-0 border-b border-border/60 bg-background pb-3 pt-2">
         <WeekSelector
           entriesByDay={entriesByDay}
           onSelect={requestDate}
@@ -234,33 +201,10 @@ export function DayTimeline({
   );
 }
 
-function ViewButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
+function sectionScrollTop(container: HTMLElement, section: HTMLElement) {
   return (
-    <Button
-      aria-pressed={active}
-      className={cn(
-        "h-7 gap-1.5 rounded-[0.625rem] px-2.5 text-xs shadow-none",
-        active
-          ? "bg-background text-foreground hover:bg-background"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-      onClick={onClick}
-      size="xs"
-      variant="ghost"
-    >
-      <span className="[&>svg]:size-3.5">{icon}</span>
-      {label}
-    </Button>
+    container.scrollTop +
+    (section.getBoundingClientRect().top - container.getBoundingClientRect().top)
   );
 }
 
@@ -321,10 +265,13 @@ function PlannerDayFeed({
   const calendarTodayOffset = React.useCallback(
     (container: HTMLDivElement, today: HTMLElement) => {
       const line = today.querySelector<HTMLElement>("[data-current-time-line]");
-      if (!line) return today.offsetTop;
+      if (!line) return sectionScrollTop(container, today);
       const containerTop = container.getBoundingClientRect().top;
       const lineTop = line.getBoundingClientRect().top - containerTop;
-      return Math.max(0, container.scrollTop + lineTop - container.clientHeight / 3);
+      return Math.max(
+        0,
+        container.scrollTop + lineTop - container.clientHeight / 3,
+      );
     },
     [],
   );
@@ -363,7 +310,7 @@ function PlannerDayFeed({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     container.scrollTo({
-      top: section.offsetTop,
+      top: sectionScrollTop(container, section),
       behavior: reduceMotion ? "auto" : "smooth",
     });
   }, [loadedPages, scrollRef, scrollTarget]);
@@ -371,7 +318,7 @@ function PlannerDayFeed({
   return (
     <div
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        "relative min-h-0 flex-1 overflow-y-auto overscroll-contain",
         "-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10",
         mode === "list" && "snap-y snap-mandatory",
       )}
@@ -382,10 +329,7 @@ function PlannerDayFeed({
       {dayKeys.map((dateKey) => {
         const entries = entriesByDay.get(dateKey) ?? [];
         const isToday = dateKey === todayKey;
-        const visibleEntries =
-          mode === "calendar"
-            ? entries.filter((entry) => !entry.startsAt)
-            : entries;
+        const visibleEntries = mode === "calendar" ? [] : entries;
 
         return (
           <DaySection
@@ -412,6 +356,7 @@ function PlannerDayFeed({
                   dateKey={dateKey}
                   entries={entries.filter((entry) => entry.startsAt)}
                   isToday={isToday}
+                  onCreate={onCreate}
                   onDelete={onDelete}
                   onSchedule={onScheduleAtTime}
                   onToggle={onToggle}
