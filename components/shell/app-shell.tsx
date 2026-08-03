@@ -9,6 +9,7 @@ import {
   ShellAccountMenu,
   ShellAccountPanel,
 } from "@/components/planner/shell-account-menu";
+import { PageBuildNotes } from "@/components/shell/page-build-notes";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -137,6 +138,7 @@ export function AppShell({
           </p>
 
           <div className="flex items-center gap-1">
+            <PageBuildNotes />
             {headerAction}
             <div className="flex items-center gap-1 lg:hidden">
               <ThemeToggle />

@@ -61,6 +61,24 @@ export type PlannerResponse = {
   inbox: TaskPayload[];
 };
 
+export type PageNotePayload = {
+  id: string;
+  userId: string;
+  pageKey: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PageNoteResponse = {
+  note: PageNotePayload | null;
+};
+
+export type UpsertPageNoteBody = {
+  pageKey: string;
+  content: string;
+};
+
 export type BareTaskPayload = Omit<TaskPayload, "attachments">;
 
 export type BarePlannerEntryPayload = Omit<

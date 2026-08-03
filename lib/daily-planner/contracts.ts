@@ -159,6 +159,17 @@ export const setMetricLinkSchema = z.object({
   state: z.enum(["included", "excluded", "clear"]),
 });
 
+const pageKey = z.string().min(1).max(500).startsWith("/");
+
+export const pageNoteQuerySchema = z.object({
+  key: pageKey,
+});
+
+export const upsertPageNoteSchema = z.object({
+  pageKey,
+  content: z.string().max(50_000),
+});
+
 function validateScheduleFields(
   value: {
     plannerDate?: string | null;
@@ -207,3 +218,5 @@ export type MetricsQuery = z.infer<typeof metricsQuerySchema>;
 export type CreateMetricInput = z.infer<typeof createMetricSchema>;
 export type UpdateMetricInput = z.infer<typeof updateMetricSchema>;
 export type SetMetricLinkInput = z.infer<typeof setMetricLinkSchema>;
+export type PageNoteQuery = z.infer<typeof pageNoteQuerySchema>;
+export type UpsertPageNoteInput = z.infer<typeof upsertPageNoteSchema>;
