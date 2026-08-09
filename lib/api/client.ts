@@ -6,6 +6,7 @@ import type {
   CreateApplicationBody,
   CreateMetricBody,
   CreateTaskBody,
+  CreateWhiteboardBody,
   GoogleConnectionResponse,
   ImportApplicationsResponse,
   MetricsResponse,
@@ -20,7 +21,10 @@ import type {
   UpdateApplicationBody,
   UpdateMetricBody,
   UpdateTaskBody,
+  UpdateWhiteboardBody,
   UpsertPageNoteBody,
+  WhiteboardResponse,
+  WhiteboardsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -259,4 +263,37 @@ export function disconnectGoogle() {
   return request<GoogleConnectionResponse>("/api/google/connection", {
     method: "DELETE",
   });
+}
+
+export function fetchWhiteboards(pageKey: string) {
+  const query = new URLSearchParams({ key: pageKey });
+  return request<WhiteboardsResponse>(`/api/whiteboards?${query}`);
+}
+
+export function fetchWhiteboard(whiteboardId: string) {
+  return request<WhiteboardResponse>(`/api/whiteboards/${whiteboardId}`);
+}
+
+export function createWhiteboard(body: CreateWhiteboardBody) {
+  return request<WhiteboardResponse>("/api/whiteboards", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateWhiteboard(
+  whiteboardId: string,
+  body: UpdateWhiteboardBody,
+) {
+  return request<WhiteboardResponse>(`/api/whiteboards/${whiteboardId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteWhiteboard(whiteboardId: string) {
+  return request<{ whiteboard: { id: string } }>(
+    `/api/whiteboards/${whiteboardId}`,
+    { method: "DELETE" },
+  );
 }
