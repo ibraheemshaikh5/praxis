@@ -69,6 +69,8 @@ export function useMetrics(anchor: string) {
     queryFn: () => fetchMetrics(anchor),
     staleTime: 15_000,
     enabled: Boolean(anchor),
+    // Picks up changes made from another tab or device while this one sits open.
+    refetchInterval: 60_000,
   });
 }
 
