@@ -52,6 +52,7 @@ export class ReadingService {
           author: resolved.author,
           source: resolved.source,
           url: resolved.url,
+          pdfUrl: resolved.pdfUrl,
           imageUrl: resolved.imageUrl,
           coverOptions: resolved.coverOptions,
         })
