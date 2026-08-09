@@ -45,6 +45,8 @@ function pageQuery(pageIndex: number) {
       const { from, to } = plannerPageRange(pageIndex);
       return fetchPlanner({ from, to });
     },
+    // Picks up changes made from another tab or device while this one sits open.
+    refetchInterval: 60_000,
   };
 }
 
