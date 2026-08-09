@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
 
 import { NotFoundError, ValidationError } from "@/lib/daily-planner/errors";
 import type { Database } from "@/lib/db/client";
@@ -14,6 +14,9 @@ import { fireRoutine, isDispatchConfigured } from "./dispatch";
 import { composeDispatchPrompt } from "./prompt";
 
 const POSITION_STEP = 1024;
+
+// The cloud tab reads recent runs across every page, not a full history.
+const DISPATCH_HISTORY_LIMIT = 25;
 
 export class BuildNotesService {
   constructor(private readonly db: Database) {}
@@ -39,6 +42,62 @@ export class BuildNotesService {
       notes: rows.map((row) => ({
         ...row.note,
         dispatchSessionUrl: row.dispatchSessionUrl,
+      })),
+    };
+  }
+
+  /**
+   * Recent dispatches across every page, each with the notes it carried.
+   *
+   * The routine fire endpoint has no read-back API, so a run's progress is
+   * whatever its notes report: a dispatched note is in flight until it is
+   * marked done here.
+   */
+  async listBuildNoteDispatches(userId: string) {
+    const dispatches = await this.db
+      .select({
+        id: buildNoteDispatches.id,
+        pageKey: buildNoteDispatches.pageKey,
+        sessionId: buildNoteDispatches.sessionId,
+        sessionUrl: buildNoteDispatches.sessionUrl,
+        noteCount: buildNoteDispatches.noteCount,
+        createdAt: buildNoteDispatches.createdAt,
+      })
+      .from(buildNoteDispatches)
+      .where(eq(buildNoteDispatches.userId, userId))
+      .orderBy(desc(buildNoteDispatches.createdAt))
+      .limit(DISPATCH_HISTORY_LIMIT);
+
+    if (dispatches.length === 0) return { dispatches: [] };
+
+    const notes = await this.db
+      .select()
+      .from(buildNotes)
+      .where(
+        and(
+          eq(buildNotes.userId, userId),
+          inArray(
+            buildNotes.lastDispatchId,
+            dispatches.map((dispatch) => dispatch.id),
+          ),
+        ),
+      )
+      .orderBy(asc(buildNotes.priority), asc(buildNotes.position));
+
+    // A note redispatched later moves to the newer dispatch, so each note
+    // appears under exactly one group.
+    const grouped = new Map<string, typeof notes>();
+    for (const note of notes) {
+      if (!note.lastDispatchId) continue;
+      const bucket = grouped.get(note.lastDispatchId);
+      if (bucket) bucket.push(note);
+      else grouped.set(note.lastDispatchId, [note]);
+    }
+
+    return {
+      dispatches: dispatches.map((dispatch) => ({
+        ...dispatch,
+        notes: grouped.get(dispatch.id) ?? [],
       })),
     };
   }

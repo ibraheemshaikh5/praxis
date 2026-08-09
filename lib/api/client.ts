@@ -4,6 +4,7 @@ import type {
   BareMetricPayload,
   BareTaskPayload,
   BookSearchResponse,
+  BuildNoteDispatchesResponse,
   BuildNoteResponse,
   BuildNotesResponse,
   CreateApplicationBody,
@@ -122,6 +123,10 @@ export function fetchPlanner(params: {
 export function fetchBuildNotes(pageKey: string) {
   const query = new URLSearchParams({ key: pageKey });
   return request<BuildNotesResponse>(`/api/build-notes?${query}`);
+}
+
+export function fetchBuildNoteDispatches() {
+  return request<BuildNoteDispatchesResponse>("/api/build-notes/dispatches");
 }
 
 export function createBuildNote(body: CreateBuildNoteBody) {
