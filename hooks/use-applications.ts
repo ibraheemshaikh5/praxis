@@ -76,6 +76,28 @@ export function useApplications(cycle: string) {
   });
 }
 
+/**
+ * Silently re-imports the connected tab so edits made straight in the
+ * spreadsheet show up here without a manual "Import" click.
+ */
+export function useAutoImportApplications(cycle: string, enabled: boolean) {
+  const client = useQueryClient();
+
+  useQuery({
+    queryKey: [...applicationsKeys.list(cycle), "auto-import"] as const,
+    queryFn: async () => {
+      const result = await importApplications(cycle);
+      if (result.imported > 0) await invalidateApplications(client);
+      return result;
+    },
+    enabled: enabled && Boolean(cycle),
+    staleTime: 0,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
 export function useGoogleConnection() {
   return useQuery({
     queryKey: applicationsKeys.connection,
