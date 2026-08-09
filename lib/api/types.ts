@@ -361,6 +361,23 @@ export type CreateReadingItemResponse = ReadingItemResponse & {
 
 export type CreateReadingItemBody = {
   input: string;
+  /** The catalogue work chosen in the picker; the server reads it back by key. */
+  workKey?: string;
+  /** Save the typed title as it stands, with no catalogue match. */
+  verbatim?: boolean;
+};
+
+export type BookCandidatePayload = {
+  workKey: string;
+  title: string;
+  author: string | null;
+  firstPublishYear: number | null;
+  editionCount: number;
+  covers: string[];
+};
+
+export type BookSearchResponse = {
+  candidates: BookCandidatePayload[];
 };
 
 export type UpdateReadingItemBody = {

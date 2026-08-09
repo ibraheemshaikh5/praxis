@@ -7,19 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function AddReadingBar({
+  onChange,
   onSubmit,
   pending,
+  value,
 }: {
-  onSubmit: (input: string, done: () => void) => void;
+  onChange: (value: string) => void;
+  onSubmit: (input: string) => void;
   pending: boolean;
+  value: string;
 }) {
-  const [value, setValue] = React.useState("");
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const input = value.trim();
     if (!input || pending) return;
-    onSubmit(input, () => setValue(""));
+    onSubmit(input);
   }
 
   return (
@@ -33,7 +35,7 @@ export function AddReadingBar({
         autoComplete="off"
         className="h-12 rounded-4xl border-border bg-card pr-14 pl-11 text-base shadow-sm"
         name="entry"
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         placeholder="Paste an article link or type a book title"
         spellCheck={false}
         value={value}
