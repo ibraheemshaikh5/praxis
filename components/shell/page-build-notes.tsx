@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Check,
+  ChevronDown,
   ExternalLink,
   NotebookPen,
   Plus,
@@ -131,6 +132,15 @@ function BuildNotesPanel({
     [notes],
   );
 
+  const openNotes = React.useMemo(
+    () => notes.filter((note) => note.status !== "done"),
+    [notes],
+  );
+  const doneNotes = React.useMemo(
+    () => notes.filter((note) => note.status === "done"),
+    [notes],
+  );
+
   // A note can be deleted or completed while it is selected.
   const selectedIds = React.useMemo(
     () => [...selected].filter((id) => dispatchable.has(id)),
@@ -155,17 +165,33 @@ function BuildNotesPanel({
           No notes.
         </p>
       ) : (
-        <ul className="max-h-72 space-y-1 overflow-y-auto">
-          {notes.map((note) => (
-            <NoteRow
-              key={note.id}
-              note={note}
+        <>
+          {openNotes.length === 0 ? (
+            <p className="px-0.5 py-6 text-center text-sm text-muted-foreground">
+              No open notes.
+            </p>
+          ) : (
+            <ul className="max-h-72 space-y-1 overflow-y-auto">
+              {openNotes.map((note) => (
+                <NoteRow
+                  key={note.id}
+                  note={note}
+                  onToggle={toggle}
+                  pageKey={pageKey}
+                  selected={selected.has(note.id)}
+                />
+              ))}
+            </ul>
+          )}
+          {doneNotes.length > 0 ? (
+            <CompletedNotes
+              notes={doneNotes}
               onToggle={toggle}
               pageKey={pageKey}
-              selected={selected.has(note.id)}
+              selected={selected}
             />
-          ))}
-        </ul>
+          ) : null}
+        </>
       )}
 
       <div className="space-y-1.5 border-t pt-3">
@@ -189,6 +215,49 @@ function BuildNotesPanel({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CompletedNotes({
+  notes,
+  onToggle,
+  pageKey,
+  selected,
+}: {
+  notes: BuildNotePayload[];
+  onToggle: (noteId: string, checked: boolean) => void;
+  pageKey: string;
+  selected: ReadonlySet<string>;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <div className="border-t pt-2">
+      <button
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
+        onClick={() => setIsOpen((open) => !open)}
+        type="button"
+      >
+        <span>Completed ({notes.length})</span>
+        <ChevronDown
+          className={cn("size-3.5 transition-transform", isOpen && "rotate-180")}
+        />
+      </button>
+      {isOpen ? (
+        <ul className="max-h-48 space-y-1 overflow-y-auto pt-1">
+          {notes.map((note) => (
+            <NoteRow
+              key={note.id}
+              note={note}
+              onToggle={onToggle}
+              pageKey={pageKey}
+              selected={selected.has(note.id)}
+            />
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -255,6 +324,20 @@ function NoteRow({
   const update = useUpdateBuildNote(pageKey);
   const remove = useDeleteBuildNote(pageKey);
   const isDone = note.status === "done";
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(note.body);
+
+  function startEditing() {
+    setDraft(note.body);
+    setIsEditing(true);
+  }
+
+  function saveEdit() {
+    setIsEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === note.body) return;
+    update.mutate({ noteId: note.id, body: trimmed });
+  }
 
   return (
     <li className="group/note flex items-start gap-2 rounded-xl px-1 py-1.5 hover:bg-muted/50">
@@ -267,14 +350,36 @@ function NoteRow({
       />
 
       <div className="min-w-0 flex-1 space-y-1">
-        <p
-          className={cn(
-            "text-sm leading-6 break-words",
-            isDone && "text-muted-foreground line-through",
-          )}
-        >
-          {note.body}
-        </p>
+        {isEditing ? (
+          <Textarea
+            aria-label="Edit note"
+            autoFocus
+            className="min-h-0 resize-none bg-muted/55 text-sm leading-6"
+            onBlur={saveEdit}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setDraft(note.body);
+                setIsEditing(false);
+              } else if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            value={draft}
+          />
+        ) : (
+          <p
+            className={cn(
+              "cursor-text text-sm leading-6 break-words",
+              isDone && "text-muted-foreground line-through",
+            )}
+            onClick={startEditing}
+          >
+            {note.body}
+          </p>
+        )}
         <div className="flex items-center gap-1.5">
           <PrioritySelect
             onChange={(priority) =>
