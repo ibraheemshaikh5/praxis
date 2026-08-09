@@ -3,13 +3,17 @@ import type {
   ApplicationsResponse,
   BareMetricPayload,
   BareTaskPayload,
+  BuildNoteResponse,
+  BuildNotesResponse,
   CreateApplicationBody,
+  CreateBuildNoteBody,
   CreateMetricBody,
   CreateTaskBody,
+  DispatchBuildNotesBody,
+  DispatchBuildNotesResponse,
   GoogleConnectionResponse,
   ImportApplicationsResponse,
   MetricsResponse,
-  PageNoteResponse,
   PlannerResponse,
   ReorderPlannerBody,
   ScheduleTaskBody,
@@ -18,9 +22,9 @@ import type {
   TaskMetricLinkPayload,
   TaskMutationResponse,
   UpdateApplicationBody,
+  UpdateBuildNoteBody,
   UpdateMetricBody,
   UpdateTaskBody,
-  UpsertPageNoteBody,
 } from "./types";
 
 export class ApiError extends Error {
@@ -105,14 +109,34 @@ export function fetchPlanner(params: {
   return request<PlannerResponse>(`/api/planner?${query}`);
 }
 
-export function fetchPageNote(pageKey: string) {
+export function fetchBuildNotes(pageKey: string) {
   const query = new URLSearchParams({ key: pageKey });
-  return request<PageNoteResponse>(`/api/page-note?${query}`);
+  return request<BuildNotesResponse>(`/api/build-notes?${query}`);
 }
 
-export function upsertPageNote(body: UpsertPageNoteBody) {
-  return request<Required<PageNoteResponse>>("/api/page-note", {
-    method: "PUT",
+export function createBuildNote(body: CreateBuildNoteBody) {
+  return request<BuildNoteResponse>("/api/build-notes", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateBuildNote(noteId: string, body: UpdateBuildNoteBody) {
+  return request<BuildNoteResponse>(`/api/build-notes/${noteId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteBuildNote(noteId: string) {
+  return request<BuildNoteResponse>(`/api/build-notes/${noteId}`, {
+    method: "DELETE",
+  });
+}
+
+export function dispatchBuildNotes(body: DispatchBuildNotesBody) {
+  return request<DispatchBuildNotesResponse>("/api/build-notes/dispatch", {
+    method: "POST",
     body: JSON.stringify(body),
   });
 }

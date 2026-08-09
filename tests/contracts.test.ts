@@ -2,11 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createTaskSchema,
-  pageNoteQuerySchema,
   plannerRangeQuerySchema,
   reserveAttachmentSchema,
   scheduleTaskSchema,
-  upsertPageNoteSchema,
 } from "@/lib/daily-planner/contracts";
 import { AuthenticationError } from "@/lib/daily-planner/errors";
 import { requireMaintenanceAuthorization } from "@/lib/api/routes";
@@ -99,22 +97,6 @@ describe("daily planner contracts", () => {
         mimeType: "application/pdf",
         byteSize: 26_214_401,
       }),
-    ).toThrow();
-  });
-
-  it("accepts page-scoped notes and rejects invalid page keys", () => {
-    expect(
-      upsertPageNoteSchema.parse({
-        pageKey: "/applications",
-        content: "- Add filters\n- Refine empty state",
-      }),
-    ).toEqual({
-      pageKey: "/applications",
-      content: "- Add filters\n- Refine empty state",
-    });
-    expect(() => pageNoteQuerySchema.parse({ key: "applications" })).toThrow();
-    expect(() =>
-      upsertPageNoteSchema.parse({ pageKey: "/", content: "x".repeat(50_001) }),
     ).toThrow();
   });
 });
