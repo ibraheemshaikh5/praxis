@@ -5,12 +5,16 @@ import type {
   BareTaskPayload,
   CreateApplicationBody,
   CreateMetricBody,
+  CreateReadingItemBody,
+  CreateReadingItemResponse,
   CreateTaskBody,
   GoogleConnectionResponse,
   ImportApplicationsResponse,
   MetricsResponse,
   PageNoteResponse,
   PlannerResponse,
+  ReadingItemResponse,
+  ReadingResponse,
   ReorderPlannerBody,
   ScheduleTaskBody,
   SetMetricLinkBody,
@@ -19,6 +23,7 @@ import type {
   TaskMutationResponse,
   UpdateApplicationBody,
   UpdateMetricBody,
+  UpdateReadingItemBody,
   UpdateTaskBody,
   UpsertPageNoteBody,
 } from "./types";
@@ -244,6 +249,34 @@ export function importApplications(cycle?: string) {
   return request<ImportApplicationsResponse>("/api/applications/import", {
     method: "POST",
     body: JSON.stringify(cycle ? { cycle } : {}),
+  });
+}
+
+export function fetchReadingItems() {
+  return request<ReadingResponse>("/api/reading");
+}
+
+export function fetchReadingItem(itemId: string) {
+  return request<ReadingItemResponse>(`/api/reading/${itemId}`);
+}
+
+export function createReadingItem(body: CreateReadingItemBody) {
+  return request<CreateReadingItemResponse>("/api/reading", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateReadingItem(itemId: string, body: UpdateReadingItemBody) {
+  return request<ReadingItemResponse>(`/api/reading/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteReadingItem(itemId: string) {
+  return request<ReadingItemResponse>(`/api/reading/${itemId}`, {
+    method: "DELETE",
   });
 }
 
