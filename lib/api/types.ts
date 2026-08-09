@@ -281,3 +281,46 @@ export type ImportApplicationsResponse = {
 export type SpreadsheetTabsResponse = {
   tabs: string[];
 };
+
+export type ReadingItemKind = "book" | "article";
+
+export type ReadingItemPayload = {
+  id: string;
+  userId: string;
+  kind: ReadingItemKind;
+  title: string;
+  author: string | null;
+  source: string | null;
+  url: string | null;
+  pdfUrl: string | null;
+  imageUrl: string | null;
+  coverOptions: string[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReadingResponse = {
+  items: ReadingItemPayload[];
+};
+
+export type ReadingItemResponse = {
+  item: ReadingItemPayload;
+};
+
+export type CreateReadingItemResponse = ReadingItemResponse & {
+  /** The link was already saved; the existing entry came back instead. */
+  duplicate: boolean;
+};
+
+export type CreateReadingItemBody = {
+  input: string;
+};
+
+export type UpdateReadingItemBody = {
+  title?: string;
+  author?: string | null;
+  imageUrl?: string | null;
+  pdfUrl?: string | null;
+  expectedVersion: number;
+};

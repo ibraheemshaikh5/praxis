@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, CalendarDays, Check } from "lucide-react";
+import { BookOpen, Briefcase, CalendarDays, Check } from "lucide-react";
 
 import {
   ShellAccountMenu,
@@ -22,6 +22,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", icon: CalendarDays, label: "Daily planner" },
   { href: "/applications", icon: Briefcase, label: "Applications" },
+  { href: "/reading", icon: BookOpen, label: "Reading" },
 ];
 
 function isActive(pathname: string, href: string) {
