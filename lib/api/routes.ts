@@ -21,6 +21,10 @@ export type ApplicationRouteContext = {
   params: Promise<{ applicationId: string }>;
 };
 
+export type ReadingItemRouteContext = {
+  params: Promise<{ itemId: string }>;
+};
+
 export async function parseJson<T>(request: Request, schema: ZodType<T>) {
   let body: unknown;
   try {
@@ -58,6 +62,11 @@ export async function resolveAttachmentIds(context: AttachmentRouteContext) {
 export async function resolveApplicationId(context: ApplicationRouteContext) {
   const { applicationId } = await context.params;
   return parseUuid(applicationId, "applicationId");
+}
+
+export async function resolveReadingItemId(context: ReadingItemRouteContext) {
+  const { itemId } = await context.params;
+  return parseUuid(itemId, "itemId");
 }
 
 export function jsonCreated(data: unknown) {

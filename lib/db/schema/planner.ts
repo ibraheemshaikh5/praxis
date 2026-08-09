@@ -354,6 +354,12 @@ export const taskMetricLinks = pgTable(
   ],
 );
 
+/**
+ * Superseded by `buildNotes`, whose migration copied every line across as a P2
+ * note. Nothing reads this table; it stays declared so the original text is
+ * recoverable and so schema tooling does not propose dropping it. Remove it in
+ * a follow-up migration once the carried-over notes look right.
+ */
 export const pageNotes = pgTable(
   "page_notes",
   {

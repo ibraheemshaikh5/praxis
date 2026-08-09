@@ -18,7 +18,6 @@ import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db/client";
 import {
   metrics,
-  pageNotes,
   plannerEntries,
   profiles,
   taskAttachments,
@@ -31,7 +30,6 @@ import type {
   CreateMetricInput,
   CreateTaskInput,
   MetricsQuery,
-  PageNoteQuery,
   PlannerRangeQuery,
   ReorderPlannerInput,
   ReserveAttachmentInput,
@@ -39,7 +37,6 @@ import type {
   SetMetricLinkInput,
   UpdateMetricInput,
   UpdateTaskInput,
-  UpsertPageNoteInput,
 } from "./contracts";
 import { ConflictError, NotFoundError, StorageError } from "./errors";
 import type { AttachmentStorage } from "./storage";
@@ -55,39 +52,6 @@ const METRIC_HISTORY_PERIODS = 8;
 
 export class DailyPlannerService {
   constructor(private readonly db: Database) {}
-
-  async getPageNote(userId: string, query: PageNoteQuery) {
-    const note = await this.db.query.pageNotes.findFirst({
-      where: and(
-        eq(pageNotes.userId, userId),
-        eq(pageNotes.pageKey, query.key),
-      ),
-    });
-
-    return { note: note ?? null };
-  }
-
-  async upsertPageNote(userId: string, input: UpsertPageNoteInput) {
-    const profile = await this.db.query.profiles.findFirst({
-      where: eq(profiles.id, userId),
-    });
-    if (!profile) throw new NotFoundError("User profile not found");
-
-    const [note] = await this.db
-      .insert(pageNotes)
-      .values({
-        userId,
-        pageKey: input.pageKey,
-        content: input.content,
-      })
-      .onConflictDoUpdate({
-        target: [pageNotes.userId, pageNotes.pageKey],
-        set: { content: input.content },
-      })
-      .returning();
-
-    return { note };
-  }
 
   async listPlanner(userId: string, query: PlannerRangeQuery) {
     const destination = alias(plannerEntries, "destination");
