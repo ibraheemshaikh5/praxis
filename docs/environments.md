@@ -13,8 +13,8 @@ Status: implemented. Praxis has three databases.
 - Migrations are rehearsed on the dev project before production sees them. A
   migration that applies to an empty database can still fail on one holding
   rows.
-- Production migrations require a confirmation that names the project, so the
-  command cannot be run by reflex or by an agent.
+- Production migrations require `PRAXIS_CONFIRM_PRODUCTION` to name the
+  project, so the command cannot be run by reflex.
 
 ## Declaration
 

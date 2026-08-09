@@ -18,10 +18,6 @@
   A suite that opens its own connection skips the guard.
 - Migrations reach production only through `pnpm db:migrate:prod`, and only
   after the same migration has been applied to the dev project.
-- Agents do not run migrations, resets, or pushes against a hosted database,
-  and do not set `PRAXIS_CONFIRM_PRODUCTION`. Those are the owner's to run.
-- Agents do not edit `.env.local` or any other file holding real credentials.
-  Propose the change and let the owner make it.
 
 ## Interface copy
 
