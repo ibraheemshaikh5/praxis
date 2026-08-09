@@ -4,6 +4,11 @@
  * stays a `YYYY-MM-DD` calendar string.
  */
 
+import type {
+  BuildNotePriority,
+  BuildNoteStatus,
+} from "@/lib/build-notes/priority";
+
 export type AttachmentUploadStatus = "pending" | "ready" | "failed";
 
 export type PlannerEntryClosureReason = "moved" | "unscheduled";
@@ -61,22 +66,63 @@ export type PlannerResponse = {
   inbox: TaskPayload[];
 };
 
-export type PageNotePayload = {
+export type BareBuildNotePayload = {
   id: string;
   userId: string;
   pageKey: string;
-  content: string;
+  body: string;
+  priority: BuildNotePriority;
+  status: BuildNoteStatus;
+  position: number;
+  lastDispatchId: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type PageNoteResponse = {
-  note: PageNotePayload | null;
+export type BuildNotePayload = BareBuildNotePayload & {
+  /** The session the note was last dispatched to, resolved from its dispatch. */
+  dispatchSessionUrl: string | null;
 };
 
-export type UpsertPageNoteBody = {
+export type BuildNoteDispatchPayload = {
+  id: string;
   pageKey: string;
-  content: string;
+  sessionId: string;
+  sessionUrl: string;
+  noteCount: number;
+  createdAt: string;
+};
+
+export type BuildNotesResponse = {
+  /** False when the server has no routine credentials, which disables dispatch. */
+  dispatchConfigured: boolean;
+  notes: BuildNotePayload[];
+};
+
+export type BuildNoteResponse = {
+  note: BareBuildNotePayload;
+};
+
+export type DispatchBuildNotesResponse = {
+  dispatch: BuildNoteDispatchPayload;
+  notes: BuildNotePayload[];
+};
+
+export type CreateBuildNoteBody = {
+  pageKey: string;
+  body: string;
+  priority: BuildNotePriority;
+};
+
+export type UpdateBuildNoteBody = {
+  body?: string;
+  priority?: BuildNotePriority;
+  status?: Exclude<BuildNoteStatus, "dispatched">;
+};
+
+export type DispatchBuildNotesBody = {
+  pageKey: string;
+  noteIds: string[];
 };
 
 export type BareTaskPayload = Omit<TaskPayload, "attachments">;

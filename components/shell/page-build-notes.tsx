@@ -1,10 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { NotebookPen } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  NotebookPen,
+  Plus,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -13,12 +21,37 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { usePageNote, useSavePageNote } from "@/hooks/use-page-note";
+import {
+  useBuildNotes,
+  useCreateBuildNote,
+  useDeleteBuildNote,
+  useDispatchBuildNotes,
+  useUpdateBuildNote,
+} from "@/hooks/use-build-notes";
+import type { BuildNotePayload } from "@/lib/api/types";
+import {
+  BUILD_NOTE_PRIORITIES,
+  DEFAULT_BUILD_NOTE_PRIORITY,
+  PRIORITY_LABELS,
+  type BuildNotePriority,
+} from "@/lib/build-notes/priority";
 import { cn } from "@/lib/utils";
 
-const SAVE_DELAY_MS = 700;
+const PRIORITY_TONES: Record<BuildNotePriority, string> = {
+  p0: "bg-destructive/12 text-destructive",
+  p1: "bg-primary/12 text-primary",
+  p2: "bg-muted text-muted-foreground",
+  p3: "bg-muted text-muted-foreground",
+};
 
 export function PageBuildNotes() {
   const pageKey = usePathname();
@@ -26,18 +59,17 @@ export function PageBuildNotes() {
 }
 
 function PageBuildNotesForPage({ pageKey }: { pageKey: string }) {
-  const { data, isError, isLoading } = usePageNote(pageKey);
-  const [open, setOpen] = React.useState(false);
-  const savedContent = data?.note?.content ?? "";
-  const hasContent = savedContent.trim().length > 0;
+  const { data, isError, isLoading } = useBuildNotes(pageKey);
+  const notes = React.useMemo(() => data?.notes ?? [], [data]);
+  const openCount = notes.filter((note) => note.status !== "done").length;
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover>
       <PopoverTrigger
         render={
           <Button
             aria-label="Open build notes"
-            className={cn(hasContent && "text-primary")}
+            className={cn(openCount > 0 && "text-primary")}
             size="icon-sm"
             variant="ghost"
           />
@@ -47,7 +79,7 @@ function PageBuildNotesForPage({ pageKey }: { pageKey: string }) {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-[min(24rem,calc(100vw-2rem))] gap-3 rounded-2xl p-3.5"
+        className="w-[min(26rem,calc(100vw-2rem))] gap-3 rounded-2xl p-3.5"
         sideOffset={8}
       >
         <PopoverHeader className="gap-0.5 px-0.5">
@@ -68,8 +100,9 @@ function PageBuildNotesForPage({ pageKey }: { pageKey: string }) {
             </p>
           </div>
         ) : (
-          <PageBuildNotesEditor
-            initialContent={savedContent}
+          <BuildNotesPanel
+            dispatchConfigured={data?.dispatchConfigured ?? false}
+            notes={notes}
             pageKey={pageKey}
           />
         )}
@@ -78,53 +111,251 @@ function PageBuildNotesForPage({ pageKey }: { pageKey: string }) {
   );
 }
 
-function PageBuildNotesEditor({
-  initialContent,
+function BuildNotesPanel({
+  dispatchConfigured,
+  notes,
   pageKey,
 }: {
-  initialContent: string;
+  dispatchConfigured: boolean;
+  notes: BuildNotePayload[];
   pageKey: string;
 }) {
-  const [draft, setDraft] = React.useState(initialContent);
-  const { isError, isPending, mutate } = useSavePageNote(pageKey);
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const dispatch = useDispatchBuildNotes(pageKey);
 
-  React.useEffect(() => {
-    if (isPending || draft === initialContent) return;
+  const dispatchable = React.useMemo(
+    () =>
+      new Set(notes.filter((note) => note.status !== "done").map((n) => n.id)),
+    [notes],
+  );
 
-    const timer = window.setTimeout(() => mutate(draft), SAVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [draft, initialContent, isPending, mutate]);
+  // A note can be deleted or completed while it is selected.
+  const selectedIds = React.useMemo(
+    () => [...selected].filter((id) => dispatchable.has(id)),
+    [dispatchable, selected],
+  );
 
-  const saveLabel = isPending
-    ? "Saving"
-    : isError
-      ? "Could not save"
-      : draft !== initialContent
-        ? "Unsaved"
-        : "Saved";
+  function toggle(noteId: string, checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(noteId);
+      else next.delete(noteId);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <NoteComposer pageKey={pageKey} />
+
+      {notes.length === 0 ? (
+        <p className="px-0.5 py-6 text-center text-sm text-muted-foreground">
+          No notes.
+        </p>
+      ) : (
+        <ul className="max-h-72 space-y-1 overflow-y-auto">
+          {notes.map((note) => (
+            <NoteRow
+              key={note.id}
+              note={note}
+              onToggle={toggle}
+              pageKey={pageKey}
+              selected={selected.has(note.id)}
+            />
+          ))}
+        </ul>
+      )}
+
+      <div className="space-y-1.5 border-t pt-3">
+        <Button
+          className="w-full"
+          disabled={
+            !dispatchConfigured ||
+            selectedIds.length === 0 ||
+            dispatch.isPending
+          }
+          onClick={() => dispatch.mutate(selectedIds)}
+          size="sm"
+        >
+          {dispatch.isPending
+            ? "Starting agent"
+            : `Send ${selectedIds.length} to Claude`}
+        </Button>
+        {dispatchConfigured ? null : (
+          <p className="px-0.5 text-center text-xs text-muted-foreground">
+            Dispatch is not configured on the server.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NoteComposer({ pageKey }: { pageKey: string }) {
+  const [body, setBody] = React.useState("");
+  const [priority, setPriority] = React.useState<BuildNotePriority>(
+    DEFAULT_BUILD_NOTE_PRIORITY,
+  );
+  const create = useCreateBuildNote(pageKey);
+  const trimmed = body.trim();
+
+  function submit() {
+    if (!trimmed || create.isPending) return;
+    create.mutate(
+      { body: trimmed, priority },
+      { onSuccess: () => setBody("") },
+    );
+  }
 
   return (
     <div className="space-y-2">
       <Textarea
-        aria-label="Build notes for this page"
-        autoFocus
-        className="min-h-64 resize-y bg-muted/55 leading-6"
-        maxLength={50_000}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder={
-          "- Add a new view\n- Refine the empty state\n- Check mobile layout"
-        }
-        value={draft}
+        aria-label="New build note"
+        className="min-h-16 resize-y bg-muted/55 leading-6"
+        maxLength={2000}
+        onChange={(event) => setBody(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" || event.shiftKey) return;
+          event.preventDefault();
+          submit();
+        }}
+        placeholder="Add a note"
+        value={body}
       />
-      <p
-        aria-live="polite"
-        className={cn(
-          "px-0.5 text-right text-xs text-muted-foreground",
-          isError && "text-destructive",
-        )}
-      >
-        {saveLabel}
-      </p>
+      <div className="flex items-center gap-2">
+        <PrioritySelect onChange={setPriority} value={priority} />
+        <Button
+          className="ml-auto"
+          disabled={!trimmed || create.isPending}
+          onClick={submit}
+          size="sm"
+          variant="outline"
+        >
+          <Plus />
+          Add
+        </Button>
+      </div>
     </div>
   );
+}
+
+function NoteRow({
+  note,
+  onToggle,
+  pageKey,
+  selected,
+}: {
+  note: BuildNotePayload;
+  onToggle: (noteId: string, checked: boolean) => void;
+  pageKey: string;
+  selected: boolean;
+}) {
+  const update = useUpdateBuildNote(pageKey);
+  const remove = useDeleteBuildNote(pageKey);
+  const isDone = note.status === "done";
+
+  return (
+    <li className="group/note flex items-start gap-2 rounded-xl px-1 py-1.5 hover:bg-muted/50">
+      <Checkbox
+        aria-label={`Select ${PRIORITY_LABELS[note.priority]} note`}
+        checked={selected}
+        className="mt-1"
+        disabled={isDone}
+        onCheckedChange={(checked) => onToggle(note.id, checked === true)}
+      />
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <p
+          className={cn(
+            "text-sm leading-6 break-words",
+            isDone && "text-muted-foreground line-through",
+          )}
+        >
+          {note.body}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <PrioritySelect
+            onChange={(priority) =>
+              update.mutate({ noteId: note.id, priority })
+            }
+            value={note.priority}
+          />
+          {note.status === "dispatched" && note.dispatchSessionUrl ? (
+            <a
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+              href={note.dispatchSessionUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Session
+              <ExternalLink className="size-3" />
+            </a>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center">
+        <Button
+          aria-label={isDone ? "Reopen note" : "Mark note done"}
+          onClick={() =>
+            update.mutate({ noteId: note.id, status: isDone ? "open" : "done" })
+          }
+          size="icon-xs"
+          variant="ghost"
+        >
+          {isDone ? <Undo2 /> : <Check />}
+        </Button>
+        <Button
+          aria-label="Delete note"
+          onClick={() => remove.mutate(note.id)}
+          size="icon-xs"
+          variant="ghost"
+        >
+          <Trash2 />
+        </Button>
+      </div>
+    </li>
+  );
+}
+
+function PrioritySelect({
+  onChange,
+  value,
+}: {
+  onChange: (priority: BuildNotePriority) => void;
+  value: BuildNotePriority;
+}) {
+  return (
+    <Select
+      items={PRIORITY_LABELS}
+      onValueChange={(next) => {
+        if (isPriority(next)) onChange(next);
+      }}
+      value={value}
+    >
+      <SelectTrigger
+        aria-label="Priority"
+        className={cn(
+          "h-6 rounded-full px-2 text-xs font-medium",
+          PRIORITY_TONES[value],
+        )}
+        size="sm"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="rounded-xl">
+        {BUILD_NOTE_PRIORITIES.map((priority) => (
+          <SelectItem className="rounded-lg" key={priority} value={priority}>
+            {PRIORITY_LABELS[priority]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function isPriority(value: unknown): value is BuildNotePriority {
+  return BUILD_NOTE_PRIORITIES.includes(value as BuildNotePriority);
 }
