@@ -70,6 +70,7 @@ describe("dispatch prompt composition", () => {
     const prompt = composeDispatchPrompt({ notes, pageKey: "/planner" });
 
     expect(prompt).toContain("# Build notes for /planner");
+    expect(prompt).toContain("vertical slice");
     expect(prompt.indexOf("## P0")).toBeLessThan(prompt.indexOf("## P1"));
     expect(prompt.indexOf("## P1")).toBeLessThan(prompt.indexOf("## P2"));
     expect(prompt).toContain("1. Fix the crash on save");
