@@ -3,27 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ExternalLink, Loader2, Pencil } from "lucide-react";
+import { ChevronLeft, ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { CoverArt } from "@/components/reading/cover-art";
 import { CoverPicker } from "@/components/reading/cover-picker";
+import { RemoveReadingItemDialog } from "@/components/reading/remove-reading-item";
 import { SiteIcon } from "@/components/reading/site-icon";
 import { AppShell } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  useDeleteReadingItem,
-  useReadingItem,
-  useUpdateReadingItem,
-} from "@/hooks/use-reading";
+import { useReadingItem, useUpdateReadingItem } from "@/hooks/use-reading";
 import { signOut } from "@/lib/auth/actions";
 import type { ReadingItemPayload } from "@/lib/api/types";
 import { isHttpUrl } from "@/lib/reading/entry";
@@ -41,7 +31,6 @@ export function ReadingDetail({
   const item = data.item;
 
   const updateItem = useUpdateReadingItem();
-  const deleteItem = useDeleteReadingItem();
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
 
   const isBook = item.kind === "book";
@@ -149,38 +138,12 @@ export function ReadingDetail({
         </div>
       </div>
 
-      <Dialog onOpenChange={setConfirmingRemoval} open={confirmingRemoval}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Remove {item.title}?</DialogTitle>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              onClick={() => setConfirmingRemoval(false)}
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={deleteItem.isPending}
-              onClick={() =>
-                deleteItem.mutate(item.id, {
-                  onSuccess: () => {
-                    setConfirmingRemoval(false);
-                    router.push("/reading");
-                  },
-                })
-              }
-              variant="destructive"
-            >
-              {deleteItem.isPending ? (
-                <Loader2 className="animate-spin motion-reduce:animate-none" />
-              ) : null}
-              Remove
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RemoveReadingItemDialog
+        item={item}
+        onOpenChange={setConfirmingRemoval}
+        onRemoved={() => router.push("/reading")}
+        open={confirmingRemoval}
+      />
     </AppShell>
   );
 }
