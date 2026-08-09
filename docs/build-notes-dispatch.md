@@ -4,12 +4,17 @@ Build notes are per-route work items carrying a priority of `p0`–`p3`. Selecte
 notes are sent to a Claude Code cloud session, which does the work and opens a
 pull request.
 
+The interface calls them tasks. The stored name stays `build_notes` because
+`tasks` is already the daily planner's table.
+
 ## Routes
 
 All routes require a Supabase cookie session and scope to its owner.
 
 - `GET /api/build-notes?key=/route` returns the route's notes ordered by
   priority then position, plus `dispatchConfigured`.
+- `GET /api/build-notes/dispatches` returns the 25 most recent dispatches across
+  every page, each with the notes still pointing at it.
 - `POST /api/build-notes` creates a note (`pageKey`, `body`, `priority`).
 - `PATCH /api/build-notes/:noteId` updates `body`, `priority`, or `status`.
 - `DELETE /api/build-notes/:noteId` deletes a note.
@@ -40,7 +45,9 @@ Two properties of the endpoint shape the design:
   the instructions to implement and open a pull request live in the routine.
 - There is no read-back API for routine sessions. `build_note_dispatches`
   stores the returned session URL because it is the only handle on the run;
-  nothing polls for the resulting pull request.
+  nothing polls for the resulting pull request. Run progress in the cloud tab is
+  therefore derived from the dispatched notes themselves — a note is in flight
+  until it is marked done — not from the agent.
 
 The endpoint is in research preview behind
 `anthropic-beta: experimental-cc-routine-2026-04-01`. Anthropic keeps the two

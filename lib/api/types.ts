@@ -93,6 +93,15 @@ export type BuildNoteDispatchPayload = {
   createdAt: string;
 };
 
+export type BuildNoteDispatchGroupPayload = BuildNoteDispatchPayload & {
+  /** The notes still pointing at this dispatch, ordered by priority. */
+  notes: BareBuildNotePayload[];
+};
+
+export type BuildNoteDispatchesResponse = {
+  dispatches: BuildNoteDispatchGroupPayload[];
+};
+
 export type BuildNotesResponse = {
   /** False when the server has no routine credentials, which disables dispatch. */
   dispatchConfigured: boolean;
