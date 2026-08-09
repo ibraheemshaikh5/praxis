@@ -25,6 +25,14 @@ export type ReadingItemRouteContext = {
   params: Promise<{ itemId: string }>;
 };
 
+export type ConnectionRouteContext = {
+  params: Promise<{ connectionId: string }>;
+};
+
+export type ConnectionMeetingRouteContext = {
+  params: Promise<{ connectionId: string; meetingId: string }>;
+};
+
 export async function parseJson<T>(request: Request, schema: ZodType<T>) {
   let body: unknown;
   try {
@@ -67,6 +75,21 @@ export async function resolveApplicationId(context: ApplicationRouteContext) {
 export async function resolveReadingItemId(context: ReadingItemRouteContext) {
   const { itemId } = await context.params;
   return parseUuid(itemId, "itemId");
+}
+
+export async function resolveConnectionId(context: ConnectionRouteContext) {
+  const { connectionId } = await context.params;
+  return parseUuid(connectionId, "connectionId");
+}
+
+export async function resolveConnectionMeetingIds(
+  context: ConnectionMeetingRouteContext,
+) {
+  const { connectionId, meetingId } = await context.params;
+  return {
+    connectionId: parseUuid(connectionId, "connectionId"),
+    meetingId: parseUuid(meetingId, "meetingId"),
+  };
 }
 
 export function jsonCreated(data: unknown) {
