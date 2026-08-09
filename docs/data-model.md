@@ -133,3 +133,29 @@ Decisions:
 Unlike every other table, `google_connections` grants nothing to
 `authenticated`: the sealed token must be reachable only over the app's own
 connection.
+
+## Whiteboards
+
+Decisions:
+
+- A whiteboard belongs to a page path, the same key `page_notes` uses, so the
+  careers board and any later page keep separate drawings without new tables.
+- `document` holds the document half of a tldraw editor snapshot verbatim.
+  tldraw owns that shape and migrates it on load, so Postgres treats it as an
+  opaque object and only bounds its size; the session half (camera, selection)
+  is view state and is not stored.
+- The canvas autosaves: strokes settle for under a second, then the whole
+  document is written. There is no version guard, because a board has one
+  editor open at a time and tldraw already owns its own undo history.
+- The sidebar reads titles alone; a drawing is fetched only when it is opened.
+- Deleting a whiteboard is immediate and permanent, unlike a task.
+
+### whiteboards
+
+- `id`
+- `user_id`
+- `page_key`: the pathname that opened the board, e.g. `/careers`
+- `title`
+- `document`: `jsonb`, up to 4 MiB serialized
+- `created_at`
+- `updated_at`

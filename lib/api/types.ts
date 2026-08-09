@@ -370,3 +370,37 @@ export type UpdateReadingItemBody = {
   pdfUrl?: string | null;
   expectedVersion: number;
 };
+
+/** The tldraw editor snapshot document, stored and replayed verbatim. */
+export type WhiteboardDocument = Record<string, unknown>;
+
+export type WhiteboardSummaryPayload = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WhiteboardPayload = WhiteboardSummaryPayload & {
+  userId: string;
+  pageKey: string;
+  document: WhiteboardDocument;
+};
+
+export type WhiteboardsResponse = {
+  whiteboards: WhiteboardSummaryPayload[];
+};
+
+export type WhiteboardResponse = {
+  whiteboard: WhiteboardPayload;
+};
+
+export type CreateWhiteboardBody = {
+  pageKey: string;
+  title: string;
+};
+
+export type UpdateWhiteboardBody = {
+  title?: string;
+  document?: WhiteboardDocument;
+};
