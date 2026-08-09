@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { AddReadingBar } from "@/components/reading/add-reading-bar";
+import { BookPicker, type BookChoice } from "@/components/reading/book-picker";
 import { ArticleCard, BookCard } from "@/components/reading/reading-card";
 import { AppShell } from "@/components/shell/app-shell";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,15 +14,45 @@ import {
 } from "@/hooks/use-reading";
 import { signOut } from "@/lib/auth/actions";
 import type { ReadingItemPayload } from "@/lib/api/types";
+import { parseEntry } from "@/lib/reading/entry";
 
 export function ReadingApp({ userEmail }: { userEmail: string | null }) {
   const { data, isError, isLoading } = useReadingItems();
   const createItem = useCreateReadingItem();
   const updateItem = useUpdateReadingItem();
 
+  const [entry, setEntry] = React.useState("");
+  // The title the picker is open for, held apart from the bar so editing the
+  // text behind the dialog cannot change what is being chosen.
+  const [pickingTitle, setPickingTitle] = React.useState<string | null>(null);
+
   const items = React.useMemo(() => data?.items ?? [], [data?.items]);
   const books = items.filter((item) => item.kind === "book");
   const articles = items.filter((item) => item.kind === "article");
+
+  // A link says what it is; only a title has more than one book behind it.
+  function submitEntry(input: string) {
+    if (parseEntry(input).kind === "article") {
+      createItem.mutate({ input }, { onSuccess: () => setEntry("") });
+      return;
+    }
+
+    setPickingTitle(input);
+  }
+
+  function chooseBook(choice: BookChoice) {
+    if (pickingTitle === null) return;
+
+    createItem.mutate(
+      { input: pickingTitle, ...choice },
+      {
+        onSuccess: () => {
+          setPickingTitle(null);
+          setEntry("");
+        },
+      },
+    );
+  }
 
   function selectCover(item: ReadingItemPayload, cover: string) {
     if (cover === item.imageUrl) return;
@@ -41,10 +72,10 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
         <header className="mb-10 flex flex-col gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Reading</h1>
           <AddReadingBar
-            onSubmit={(input, done) =>
-              createItem.mutate({ input }, { onSuccess: done })
-            }
+            onChange={setEntry}
+            onSubmit={submitEntry}
             pending={createItem.isPending}
+            value={entry}
           />
         </header>
 
@@ -101,6 +132,13 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
           </section>
         ) : null}
       </div>
+
+      <BookPicker
+        onCancel={() => setPickingTitle(null)}
+        onChoose={chooseBook}
+        pending={createItem.isPending}
+        query={pickingTitle}
+      />
     </AppShell>
   );
 }

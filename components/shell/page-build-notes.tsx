@@ -4,6 +4,7 @@ import * as React from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   Check,
+  ChevronDown,
   ExternalLink,
   ListTodo,
   Plus,
@@ -136,12 +137,18 @@ function TaskPanels({
     [notes],
   );
 
-  const dispatchable = React.useMemo(
-    () =>
-      new Set(
-        pending.filter((note) => note.status !== "done").map((n) => n.id),
-      ),
+  const openTasks = React.useMemo(
+    () => pending.filter((note) => note.status !== "done"),
     [pending],
+  );
+  const doneTasks = React.useMemo(
+    () => pending.filter((note) => note.status === "done"),
+    [pending],
+  );
+
+  const dispatchable = React.useMemo(
+    () => new Set(openTasks.map((note) => note.id)),
+    [openTasks],
   );
 
   // A task can be completed or deleted while it is selected.
@@ -184,16 +191,31 @@ function TaskPanels({
             No tasks.
           </p>
         ) : (
-          <ul className="max-h-72 space-y-1 overflow-y-auto">
-            {pending.map((note) => (
-              <TaskRow
-                key={note.id}
-                note={note}
+          <>
+            {openTasks.length === 0 ? (
+              <p className="px-0.5 py-6 text-center text-sm text-muted-foreground">
+                No open tasks.
+              </p>
+            ) : (
+              <ul className="max-h-72 space-y-1 overflow-y-auto">
+                {openTasks.map((note) => (
+                  <TaskRow
+                    key={note.id}
+                    note={note}
+                    onToggle={toggle}
+                    selected={selected.has(note.id)}
+                  />
+                ))}
+              </ul>
+            )}
+            {doneTasks.length > 0 ? (
+              <CompletedTasks
+                notes={doneTasks}
                 onToggle={toggle}
-                selected={selected.has(note.id)}
+                selected={selected}
               />
-            ))}
-          </ul>
+            ) : null}
+          </>
         )}
 
         <div className="space-y-1.5 border-t pt-3">
@@ -223,6 +245,49 @@ function TaskPanels({
         <CloudPanel />
       </TabsPanel>
     </Tabs>
+  );
+}
+
+function CompletedTasks({
+  notes,
+  onToggle,
+  selected,
+}: {
+  notes: BuildNotePayload[];
+  onToggle: (noteId: string, checked: boolean) => void;
+  selected: ReadonlySet<string>;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <div className="border-t pt-2">
+      <button
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
+        onClick={() => setIsOpen((open) => !open)}
+        type="button"
+      >
+        <span>Completed ({notes.length})</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 transition-transform",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+      {isOpen ? (
+        <ul className="max-h-48 space-y-1 overflow-y-auto pt-1">
+          {notes.map((note) => (
+            <TaskRow
+              key={note.id}
+              note={note}
+              onToggle={onToggle}
+              selected={selected.has(note.id)}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -289,6 +354,20 @@ function TaskRow({
   const update = useUpdateBuildNote();
   const remove = useDeleteBuildNote();
   const isDone = note.status === "done";
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(note.body);
+
+  function startEditing() {
+    setDraft(note.body);
+    setIsEditing(true);
+  }
+
+  function saveEdit() {
+    setIsEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === note.body) return;
+    update.mutate({ noteId: note.id, body: trimmed });
+  }
 
   return (
     <li className="flex items-start gap-2 rounded-xl px-1 py-1.5 hover:bg-muted/50">
@@ -301,14 +380,36 @@ function TaskRow({
       />
 
       <div className="min-w-0 flex-1 space-y-1">
-        <p
-          className={cn(
-            "text-sm leading-6 break-words",
-            isDone && "text-muted-foreground line-through",
-          )}
-        >
-          {note.body}
-        </p>
+        {isEditing ? (
+          <Textarea
+            aria-label="Edit task"
+            autoFocus
+            className="min-h-0 resize-none bg-muted/55 text-sm leading-6"
+            onBlur={saveEdit}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setDraft(note.body);
+                setIsEditing(false);
+              } else if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            value={draft}
+          />
+        ) : (
+          <p
+            className={cn(
+              "cursor-text text-sm leading-6 break-words",
+              isDone && "text-muted-foreground line-through",
+            )}
+            onClick={startEditing}
+          >
+            {note.body}
+          </p>
+        )}
         <PrioritySelect
           onChange={(priority) => update.mutate({ noteId: note.id, priority })}
           value={note.priority}

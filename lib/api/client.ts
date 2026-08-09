@@ -3,6 +3,7 @@ import type {
   ApplicationsResponse,
   BareMetricPayload,
   BareTaskPayload,
+  BookSearchResponse,
   BuildNoteDispatchesResponse,
   BuildNoteResponse,
   BuildNotesResponse,
@@ -291,6 +292,11 @@ export function fetchReadingItems() {
 
 export function fetchReadingItem(itemId: string) {
   return request<ReadingItemResponse>(`/api/reading/${itemId}`);
+}
+
+export function searchBooks(title: string) {
+  const query = new URLSearchParams({ title });
+  return request<BookSearchResponse>(`/api/reading/search?${query}`);
 }
 
 export function createReadingItem(body: CreateReadingItemBody) {

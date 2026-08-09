@@ -48,7 +48,7 @@ export function composeDispatchPrompt({
 
   const prompt = [
     `# Build notes for ${pageKey}`,
-    `These notes describe work on the Praxis page served at \`${pageKey}\`. Lower priority numbers are more urgent: P0 first, then P1, P2, P3.`,
+    `These notes describe work on the Praxis page served at \`${pageKey}\`. That page's route, components, and library code are the vertical slice these notes belong to (see AGENTS.md); keep changes inside it unless a note clearly needs shared code. Lower priority numbers are more urgent: P0 first, then P1, P2, P3.`,
     ...sections,
   ].join("\n\n");
 

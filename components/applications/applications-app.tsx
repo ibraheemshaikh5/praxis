@@ -13,6 +13,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useApplications,
+  useAutoImportApplications,
   useCreateApplication,
   useDisconnectGoogle,
   useGoogleConnection,
@@ -97,6 +98,8 @@ export function ApplicationsApp({
   const syncApplication = useSyncApplication();
   const importApplications = useImportApplications();
   const disconnectGoogle = useDisconnectGoogle();
+
+  useAutoImportApplications(cycle, Boolean(connection?.connected));
 
   const applications = React.useMemo(
     () => data?.applications ?? [],

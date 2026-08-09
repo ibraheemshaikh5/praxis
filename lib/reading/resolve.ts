@@ -2,12 +2,23 @@ import "server-only";
 
 import { ValidationError } from "@/lib/daily-planner/errors";
 
-import { buildBookSearchUrl, parseBookSearch } from "./covers";
-import { hostLabel, type ParsedEntry } from "./entry";
+import type { CreateReadingItemInput } from "./contracts";
+import {
+  buildBookSearchUrl,
+  buildWorkLookupUrl,
+  isWorkKey,
+  parseBookCandidates,
+  type BookCandidate,
+} from "./covers";
+import { buildArchiveMetadataUrl, parseArchivePdfUrl } from "./ebook";
+import { hostLabel, parseEntry } from "./entry";
 import { fallbackArticleMetadata, parseArticleMetadata } from "./metadata";
 import { isFetchableUrl } from "./safe-url";
 
 const REQUEST_TIMEOUT_MS = 8_000;
+
+/** One book can hold a dozen scans; the first that answers settles the link. */
+const MAX_ARCHIVE_LOOKUPS = 2;
 
 // Enough of the document to reach the head of any real article page.
 const MAX_HTML_BYTES = 512_000;
@@ -23,14 +34,27 @@ export type ResolvedEntry = {
   author: string | null;
   source: string | null;
   url: string | null;
+  pdfUrl: string | null;
   imageUrl: string | null;
   coverOptions: string[];
 };
 
-export async function resolveEntry(entry: ParsedEntry): Promise<ResolvedEntry> {
-  return entry.kind === "article"
-    ? resolveArticle(entry.url)
-    : resolveBook(entry.title);
+export async function resolveCreate(
+  input: CreateReadingItemInput,
+): Promise<ResolvedEntry> {
+  const entry = parseEntry(input.input);
+  if (entry.kind === "article") return resolveArticle(entry.url);
+
+  // The reader looked at the catalogue and wanted none of it.
+  if (input.verbatim) return typedBook(entry.title);
+
+  return resolveBook(entry.title, input.workKey ?? null);
+}
+
+/** The candidates the picker offers for a typed title, best first. */
+export async function searchBookCandidates(query: string) {
+  const payload = await readJson(buildBookSearchUrl(query));
+  return payload ? parseBookCandidates(payload, query) : [];
 }
 
 async function resolveArticle(url: string): Promise<ResolvedEntry> {
@@ -50,24 +74,79 @@ async function resolveArticle(url: string): Promise<ResolvedEntry> {
     author: metadata.author,
     source: metadata.source,
     url,
+    pdfUrl: null,
     imageUrl: metadata.imageUrl,
     coverOptions: [],
   };
 }
 
-async function resolveBook(title: string): Promise<ResolvedEntry> {
-  const match = await searchBook(title);
+async function resolveBook(
+  title: string,
+  workKey: string | null,
+): Promise<ResolvedEntry> {
+  const candidate = workKey
+    ? await lookupWork(workKey)
+    : ((await searchBookCandidates(title))[0] ?? null);
+
+  // The chosen work went missing between the search and the save, or the
+  // catalogue has nothing for the title; what was typed is still worth keeping.
+  if (!candidate) return typedBook(title);
 
   return {
     kind: "book",
     // Typed titles are approximate; the catalogue spelling is the better one.
-    title: match?.title ?? title,
-    author: match?.author ?? null,
-    source: match?.firstPublishYear ? String(match.firstPublishYear) : null,
+    title: candidate.title,
+    author: candidate.author,
+    source: candidate.firstPublishYear
+      ? String(candidate.firstPublishYear)
+      : null,
     url: null,
-    imageUrl: match?.covers[0] ?? null,
-    coverOptions: match?.covers ?? [],
+    pdfUrl: await findArchivePdf(candidate.archiveIds),
+    imageUrl: candidate.covers[0] ?? null,
+    coverOptions: candidate.covers,
   };
+}
+
+/** What the reader typed, saved as a bare shelf entry. */
+function typedBook(title: string): ResolvedEntry {
+  return {
+    kind: "book",
+    title,
+    author: null,
+    source: null,
+    url: null,
+    pdfUrl: null,
+    imageUrl: null,
+    coverOptions: [],
+  };
+}
+
+async function lookupWork(workKey: string): Promise<BookCandidate | null> {
+  if (!isWorkKey(workKey)) return null;
+
+  const payload = await readJson(buildWorkLookupUrl(workKey));
+  if (!payload) return null;
+
+  const [candidate] = parseBookCandidates(payload, "");
+  // A key lookup that answered with a different work is not an answer.
+  return candidate?.workKey === workKey ? candidate : null;
+}
+
+/**
+ * A public scan has a PDF anyone can open. Nothing here fails the save: a book
+ * with no readable copy is still a book on the shelf, and the owner can paste
+ * their own link on the detail page.
+ */
+async function findArchivePdf(archiveIds: string[]) {
+  for (const archiveId of archiveIds.slice(0, MAX_ARCHIVE_LOOKUPS)) {
+    const payload = await readJson(buildArchiveMetadataUrl(archiveId));
+    if (!payload) continue;
+
+    const pdfUrl = parseArchivePdfUrl(payload, archiveId);
+    if (pdfUrl) return pdfUrl;
+  }
+
+  return null;
 }
 
 async function readHtml(url: string) {
@@ -125,18 +204,22 @@ async function readCapped(response: Response) {
   return html || null;
 }
 
-async function searchBook(title: string) {
+/** A catalogue that will not answer is a missing cover, not a failed save. */
+async function readJson(url: string): Promise<unknown> {
   try {
-    const response = await fetch(buildBookSearchUrl(title), {
+    const response = await fetch(url, {
       headers: { accept: "application/json", "user-agent": USER_AGENT },
+      redirect: "follow",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
-    if (!response.ok) return null;
-    return parseBookSearch(await response.json());
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+
+    return await response.json();
   } catch {
-    // A book with no cover is still worth keeping; the card falls back to a
-    // typeset spine.
     return null;
   }
 }

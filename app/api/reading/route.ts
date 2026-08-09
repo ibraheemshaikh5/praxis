@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 
 import { jsonCreated, parseJson, routeError } from "@/lib/api/routes";
 import { createReadingItemSchema } from "@/lib/reading/contracts";
-import { parseEntry } from "@/lib/reading/entry";
-import { resolveEntry } from "@/lib/reading/resolve";
+import { resolveCreate } from "@/lib/reading/resolve";
 import { getReadingService } from "@/lib/reading/runtime";
 import { requireAuthenticatedUserId } from "@/lib/supabase/server";
 
@@ -20,11 +19,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const userId = await requireAuthenticatedUserId();
-    const { input } = await parseJson(request, createReadingItemSchema);
+    const input = await parseJson(request, createReadingItemSchema);
 
     // The page or the catalogue is read before the row exists, so a card is
     // never saved without whatever image and byline could be found.
-    const resolved = await resolveEntry(parseEntry(input));
+    const resolved = await resolveCreate(input);
     const result = await getReadingService().createItem(userId, resolved);
 
     return jsonCreated(result);

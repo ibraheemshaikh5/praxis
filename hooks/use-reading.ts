@@ -14,6 +14,7 @@ import {
   deleteReadingItem,
   fetchReadingItem,
   fetchReadingItems,
+  searchBooks,
   updateReadingItem,
 } from "@/lib/api/client";
 import type {
@@ -28,6 +29,7 @@ export const readingKeys = {
   all: ["reading"] as const,
   list: ["reading", "list"] as const,
   item: (itemId: string) => ["reading", "item", itemId] as const,
+  search: (title: string) => ["reading", "search", title] as const,
 };
 
 function reportError(error: unknown, fallback: string) {
@@ -60,6 +62,19 @@ export function useReadingItem(
     queryFn: () => fetchReadingItem(itemId),
     initialData: { item: initialItem } satisfies ReadingItemResponse,
     staleTime: 15_000,
+  });
+}
+
+/**
+ * The catalogue answer for a title does not change between one submission and
+ * the next, so reopening the picker for the same words costs nothing.
+ */
+export function useBookSearch(title: string | null) {
+  return useQuery({
+    queryKey: readingKeys.search(title ?? ""),
+    queryFn: () => searchBooks(title ?? ""),
+    enabled: title !== null && title.trim() !== "",
+    staleTime: 5 * 60_000,
   });
 }
 

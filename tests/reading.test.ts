@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBookSearchUrl,
+  buildWorkLookupUrl,
   editionCoverUrl,
-  parseBookSearch,
+  parseBookCandidates,
+  parseBookQuery,
   workCoverUrl,
 } from "@/lib/reading/covers";
 import {
   createReadingItemSchema,
   updateReadingItemSchema,
 } from "@/lib/reading/contracts";
+import { parseArchivePdfUrl } from "@/lib/reading/ebook";
 import {
   hostLabel,
   normalizeArticleUrl,
@@ -146,26 +149,39 @@ describe("article metadata", () => {
   });
 });
 
-describe("book covers", () => {
+describe("book candidates", () => {
+  const doc = (values: Record<string, unknown>) => ({
+    key: "/works/OL1W",
+    edition_count: 1,
+    ...values,
+  });
+
   const payload = {
     docs: [
-      {
+      doc({
+        key: "/works/OL10W",
         title: "The Odyssey",
         author_name: ["Homer"],
         cover_i: 111,
         first_publish_year: -750,
         edition_key: ["OL1M", "OL2M"],
-      },
-      { title: "the odyssey!", cover_i: 222 },
-      { title: "The Iliad", cover_i: 333 },
+        edition_count: 400,
+      }),
+      doc({ key: "/works/OL11W", title: "the odyssey!", cover_i: 222 }),
+      doc({ key: "/works/OL12W", title: "The Iliad", cover_i: 333 }),
     ],
   };
 
   it("collects covers for the same title across printings", () => {
-    expect(parseBookSearch(payload)).toEqual({
+    const [best] = parseBookCandidates(payload, "The Odyssey");
+
+    expect(best).toEqual({
+      workKey: "/works/OL10W",
       title: "The Odyssey",
       author: "Homer",
       firstPublishYear: -750,
+      editionCount: 400,
+      archiveIds: [],
       covers: [
         workCoverUrl(111),
         workCoverUrl(222),
@@ -175,16 +191,170 @@ describe("book covers", () => {
     });
   });
 
-  it("survives an empty or malformed response", () => {
-    expect(parseBookSearch({ docs: [] })).toBeNull();
-    expect(parseBookSearch(null)).toBeNull();
-    expect(parseBookSearch({ docs: [{ cover_i: 1 }] })).toBeNull();
+  it("offers the alternatives rather than only the winner", () => {
+    expect(parseBookCandidates(payload, "The Odyssey")).toHaveLength(3);
   });
 
-  it("asks the catalogue for the fields the card needs", () => {
+  it("survives an empty or malformed response", () => {
+    expect(parseBookCandidates({ docs: [] }, "x")).toEqual([]);
+    expect(parseBookCandidates(null, "x")).toEqual([]);
+    expect(parseBookCandidates({ docs: [{ cover_i: 1 }] }, "x")).toEqual([]);
+    // Without a work key the row cannot be chosen later.
+    expect(parseBookCandidates({ docs: [{ title: "Dune" }] }, "Dune")).toEqual(
+      [],
+    );
+  });
+
+  it("ranks the book above a study guide that shares its title", () => {
+    const ranked = parseBookCandidates(
+      {
+        docs: [
+          doc({
+            key: "/works/OL2W",
+            title: "A Study Guide for Homer's The Odyssey",
+            edition_count: 2,
+          }),
+          doc({
+            key: "/works/OL3W",
+            title: "The Odyssey",
+            author_name: ["Homer"],
+            cover_i: 9,
+            edition_count: 400,
+            language: ["eng"],
+          }),
+        ],
+      },
+      "The Odyssey",
+    );
+
+    expect(ranked.map((candidate) => candidate.workKey)).toEqual([
+      "/works/OL3W",
+      "/works/OL2W",
+    ]);
+  });
+
+  it("reads an author typed without the word 'by'", () => {
+    const ranked = parseBookCandidates(
+      {
+        docs: [
+          doc({ key: "/works/OL4W", title: "Sapiens", edition_count: 3 }),
+          doc({
+            key: "/works/OL5W",
+            title: "Sapiens: A Brief History of Humankind",
+            author_name: ["Yuval Noah Harari"],
+            edition_count: 86,
+          }),
+        ],
+      },
+      "sapiens harari",
+    );
+
+    expect(ranked[0].workKey).toBe("/works/OL5W");
+  });
+
+  it("keeps a title that reads like a byline together", () => {
+    expect(parseBookQuery("Death by Black Hole")).toEqual({
+      text: "Death by Black Hole",
+      title: "Death",
+      author: "Black Hole",
+    });
+
+    const ranked = parseBookCandidates(
+      {
+        docs: [
+          doc({ key: "/works/OL6W", title: "Death", edition_count: 5 }),
+          doc({
+            key: "/works/OL7W",
+            title: "Death by Black Hole",
+            author_name: ["Neil deGrasse Tyson"],
+            edition_count: 12,
+          }),
+        ],
+      },
+      "Death by Black Hole",
+    );
+
+    expect(ranked[0].workKey).toBe("/works/OL7W");
+  });
+
+  it("carries archive identifiers only for a public scan", () => {
+    const [borrowable] = parseBookCandidates(
+      {
+        docs: [
+          doc({ title: "Sapiens", ebook_access: "borrowable", ia: ["scan1"] }),
+        ],
+      },
+      "Sapiens",
+    );
+    expect(borrowable.archiveIds).toEqual([]);
+
+    const [publicScan] = parseBookCandidates(
+      {
+        docs: [
+          doc({
+            title: "Walden",
+            ebook_access: "public",
+            ia: ["waldenorlifei00thor", "../escape"],
+          }),
+        ],
+      },
+      "Walden",
+    );
+    expect(publicScan.archiveIds).toEqual(["waldenorlifei00thor"]);
+  });
+
+  it("asks the catalogue for the fields the ranking needs", () => {
     const url = new URL(buildBookSearchUrl("The Odyssey"));
-    expect(url.searchParams.get("title")).toBe("The Odyssey");
-    expect(url.searchParams.get("fields")).toContain("cover_i");
+    expect(url.searchParams.get("q")).toBe("The Odyssey");
+    expect(url.searchParams.get("fields")).toContain("edition_count");
+    expect(url.searchParams.get("fields")).toContain("ebook_access");
+
+    const lookup = new URL(buildWorkLookupUrl("/works/OL10W"));
+    expect(lookup.searchParams.get("q")).toBe("key:/works/OL10W");
+  });
+});
+
+describe("archive pdfs", () => {
+  const files = [
+    { name: "walden_bw.pdf", format: "Grayscale PDF" },
+    { name: "walden.pdf", format: "Text PDF" },
+  ];
+
+  it("links the full text scan of a public item", () => {
+    expect(parseArchivePdfUrl({ files }, "walden")).toBe(
+      "https://archive.org/download/walden/walden.pdf",
+    );
+  });
+
+  it("refuses a scan that is only readable on loan", () => {
+    expect(
+      parseArchivePdfUrl(
+        { files, metadata: { "access-restricted-item": "true" } },
+        "walden",
+      ),
+    ).toBeNull();
+
+    expect(parseArchivePdfUrl({ files, is_dark: true }, "walden")).toBeNull();
+  });
+
+  it("ignores the encrypted derivatives and anything that is not a pdf", () => {
+    expect(
+      parseArchivePdfUrl(
+        {
+          files: [
+            { name: "walden.epub", format: "EPUB" },
+            { name: "walden.lcpdf", format: "LCP Encrypted PDF" },
+            { name: "walden_encrypted.pdf", format: "ACS Encrypted PDF" },
+          ],
+        },
+        "walden",
+      ),
+    ).toBeNull();
+  });
+
+  it("survives a malformed response", () => {
+    expect(parseArchivePdfUrl(null, "walden")).toBeNull();
+    expect(parseArchivePdfUrl({ files: "no" }, "walden")).toBeNull();
   });
 });
 
@@ -221,6 +391,22 @@ describe("reading contracts", () => {
     expect(createReadingItemSchema.safeParse({ input: "  " }).success).toBe(
       false,
     );
+  });
+
+  it("takes a chosen work only in the catalogue's own key form", () => {
+    expect(
+      createReadingItemSchema.parse({
+        input: "Walden",
+        workKey: " /works/OL55649W ",
+      }),
+    ).toEqual({ input: "Walden", workKey: "/works/OL55649W" });
+
+    for (const workKey of ["OL55649W", "/works/OL55649M", "/books/OL1W"]) {
+      expect(
+        createReadingItemSchema.safeParse({ input: "Walden", workKey }).success,
+        workKey,
+      ).toBe(false);
+    }
   });
 
   it("only accepts http links for the stored URLs", () => {

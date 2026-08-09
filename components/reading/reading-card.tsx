@@ -1,15 +1,28 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 
 import { CoverArt } from "@/components/reading/cover-art";
 import { CoverPicker } from "@/components/reading/cover-picker";
+import {
+  RemoveItemButton,
+  RemoveReadingItemDialog,
+} from "@/components/reading/remove-reading-item";
 import { SiteIcon } from "@/components/reading/site-icon";
 import type { ReadingItemPayload } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 const FOCUS_RING =
   "rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background";
+
+/**
+ * The controls sit over the cover rather than under the title, so they stay out
+ * of the way until the card is reached for. Each one carries its own visibility
+ * so an open cover popover keeps its trigger on screen.
+ */
+const OVERLAY_CONTROL =
+  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none";
 
 export function BookCard({
   item,
@@ -18,6 +31,8 @@ export function BookCard({
   item: ReadingItemPayload;
   onSelectCover: (cover: string) => void;
 }) {
+  const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
+
   return (
     <article className="group relative">
       <Link className={cn("block", FOCUS_RING)} href={`/reading/${item.id}`}>
@@ -46,20 +61,35 @@ export function BookCard({
         ) : null}
       </Link>
 
-      <CoverPicker
-        className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-popup-open:opacity-100 motion-reduce:transition-none"
-        covers={item.coverOptions}
-        onSelect={onSelectCover}
-        selected={item.imageUrl}
-        title={item.title}
+      <div className="absolute top-2 right-2 flex items-center gap-1.5">
+        <CoverPicker
+          className={cn(OVERLAY_CONTROL, "data-popup-open:opacity-100")}
+          covers={item.coverOptions}
+          onSelect={onSelectCover}
+          selected={item.imageUrl}
+          title={item.title}
+        />
+        <RemoveItemButton
+          className={OVERLAY_CONTROL}
+          onClick={() => setConfirmingRemoval(true)}
+          title={item.title}
+        />
+      </div>
+
+      <RemoveReadingItemDialog
+        item={item}
+        onOpenChange={setConfirmingRemoval}
+        open={confirmingRemoval}
       />
     </article>
   );
 }
 
 export function ArticleCard({ item }: { item: ReadingItemPayload }) {
+  const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
+
   return (
-    <article className="group">
+    <article className="group relative">
       <Link
         className={cn(
           "flex h-full flex-col overflow-hidden border border-border bg-card transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg motion-reduce:transition-none motion-reduce:group-hover:translate-y-0",
@@ -93,6 +123,18 @@ export function ArticleCard({ item }: { item: ReadingItemPayload }) {
           ) : null}
         </div>
       </Link>
+
+      <RemoveItemButton
+        className={cn(OVERLAY_CONTROL, "absolute top-2 right-2")}
+        onClick={() => setConfirmingRemoval(true)}
+        title={item.title}
+      />
+
+      <RemoveReadingItemDialog
+        item={item}
+        onOpenChange={setConfirmingRemoval}
+        open={confirmingRemoval}
+      />
     </article>
   );
 }
