@@ -136,7 +136,9 @@ function WhiteboardWorkspace({ pageKey }: { pageKey: string }) {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        {isError ? (
+        {/* A failed background refresh must not tear down a working canvas;
+            the error panel is only for having nothing to show at all. */}
+        {isError && !data ? (
           <PanelMessage>
             Could not load whiteboards. Close the panel and try again.
           </PanelMessage>
@@ -169,7 +171,7 @@ function WhiteboardPanel({
   title: string;
   whiteboardId: string;
 }) {
-  const { data, isError, isLoading } = useWhiteboard(whiteboardId);
+  const { data, isLoading } = useWhiteboard(whiteboardId);
   const updateWhiteboard = useUpdateWhiteboard(pageKey);
   const deleteWhiteboard = useDeleteWhiteboard(pageKey);
   const [draftTitle, setDraftTitle] = React.useState(title);
@@ -248,7 +250,7 @@ function WhiteboardPanel({
       <div className="relative min-h-0 flex-1">
         {isLoading ? (
           <CanvasFallback />
-        ) : isError || !data ? (
+        ) : !data ? (
           <PanelMessage>
             Could not load that drawing. Close the panel and try again.
           </PanelMessage>

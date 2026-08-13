@@ -23,11 +23,23 @@ function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
 }
 
+// The board auto-saves while the user draws, so these queries refetch far
+// more often than most. The app-wide policy gives up on network errors
+// (status 0); here a dropped connection has to survive a retry or the open
+// canvas pays for it.
+function retryTransientErrors(failureCount: number, error: unknown) {
+  if (error instanceof ApiError && error.status > 0 && error.status < 500) {
+    return false;
+  }
+  return failureCount < 2;
+}
+
 export function useWhiteboards(pageKey: string, enabled = true) {
   return useQuery({
     queryKey: whiteboardKeys.list(pageKey),
     queryFn: () => fetchWhiteboards(pageKey),
     enabled: enabled && Boolean(pageKey),
+    retry: retryTransientErrors,
   });
 }
 
@@ -40,6 +52,7 @@ export function useWhiteboard(whiteboardId: string | null) {
     // replay a snapshot the editor already holds.
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    retry: retryTransientErrors,
   });
 }
 
