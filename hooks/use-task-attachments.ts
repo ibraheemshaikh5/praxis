@@ -45,21 +45,25 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
   const [pending, setPending] = React.useState<PendingAttachment[]>([]);
   const filesRef = React.useRef(new Map<string, File>());
   const pendingRef = React.useRef<PendingAttachment[]>([]);
+  const mountedRef = React.useRef(true);
 
   React.useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
 
   // Local previews are object URLs; release them on unmount so a tab full of
-  // task rows doesn't pin every previewed file in memory indefinitely.
-  React.useEffect(
-    () => () => {
+  // task rows doesn't pin every previewed file in memory indefinitely. This
+  // only catches previews already in state — reserve/retry continuations
+  // that resolve after unmount are guarded separately in runUpload.
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       for (const item of pendingRef.current) {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const invalidate = React.useCallback(
     () =>
@@ -85,10 +89,25 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
       target: UploadTargetPayload,
       file: File,
     ) => {
+      // Guards every checkpoint below: if the row unmounted while this
+      // reserve/retry/upload/confirm call was in flight, drop the local
+      // preview instead of tracking it in a hook instance nothing owns.
+      let previewUrl: string | null = null;
+      const bailIfUnmounted = () => {
+        if (mountedRef.current) return false;
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        filesRef.current.delete(attachmentId);
+        return true;
+      };
+
+      if (bailIfUnmounted()) return;
+
       filesRef.current.set(attachmentId, file);
-      const previewUrl = file.type.startsWith("image/")
+      previewUrl = file.type.startsWith("image/")
         ? URL.createObjectURL(file)
         : null;
+
+      if (bailIfUnmounted()) return;
 
       setPending((current) => {
         const existing = current.find((item) => item.id === attachmentId);
@@ -110,12 +129,16 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
         // Confirmation below re-verifies the object and records the failure.
       }
 
+      if (bailIfUnmounted()) return;
+
       try {
         await confirmAttachment(taskId, attachmentId);
+        if (bailIfUnmounted()) return;
         dropPending(attachmentId);
         filesRef.current.delete(attachmentId);
         void invalidate();
       } catch {
+        if (bailIfUnmounted()) return;
         setPending((current) =>
           current.map((item) =>
             item.id === attachmentId ? { ...item, status: "failed" } : item,
