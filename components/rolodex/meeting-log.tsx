@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -45,10 +45,12 @@ export function MeetingLog({
       </h2>
 
       <MeetingForm
-        // `done` clears the form, so a logged meeting leaves it empty and back
-        // on today's date.
-        onSubmit={(body, done) => addMeeting.mutate(body, { onSuccess: done })}
-        pending={addMeeting.isPending}
+        // The entry joins the log optimistically, so the form clears at once
+        // and is empty and back on today's date for the next one.
+        onSubmit={(body, done) => {
+          addMeeting.mutate(body);
+          done();
+        }}
         today={today}
       />
 
@@ -99,13 +101,10 @@ export function MeetingLog({
                     initialNotes={meeting.notes ?? ""}
                     initialMetOn={meeting.metOn}
                     onCancel={() => setEditingId(null)}
-                    onSubmit={(body) =>
-                      updateMeeting.mutate(
-                        { meetingId: meeting.id, body },
-                        { onSuccess: () => setEditingId(null) },
-                      )
-                    }
-                    pending={updateMeeting.isPending}
+                    onSubmit={(body) => {
+                      updateMeeting.mutate({ meetingId: meeting.id, body });
+                      setEditingId(null);
+                    }}
                     today={today}
                   />
                 </div>
@@ -134,18 +133,15 @@ export function MeetingLog({
               Cancel
             </Button>
             <Button
-              disabled={deleteMeeting.isPending}
               onClick={() => {
                 if (!removing) return;
-                deleteMeeting.mutate(removing.id, {
-                  onSuccess: () => setRemoving(null),
-                });
+                // The entry leaves the log optimistically and comes back with
+                // a toast if the delete is rejected.
+                deleteMeeting.mutate(removing.id);
+                setRemoving(null);
               }}
               variant="destructive"
             >
-              {deleteMeeting.isPending ? (
-                <Loader2 className="animate-spin motion-reduce:animate-none" />
-              ) : null}
               Remove
             </Button>
           </DialogFooter>
@@ -160,7 +156,6 @@ function MeetingForm({
   initialNotes = "",
   onCancel,
   onSubmit,
-  pending,
   today,
 }: {
   initialMetOn?: string;
@@ -170,7 +165,6 @@ function MeetingForm({
     body: { metOn: string; notes: string | null },
     done: () => void,
   ) => void;
-  pending: boolean;
   today: string | null;
 }) {
   const [metOn, setMetOn] = React.useState(initialMetOn ?? "");
@@ -181,7 +175,7 @@ function MeetingForm({
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!value || pending) return;
+    if (!value) return;
 
     onSubmit({ metOn: value, notes: notes.trim() || null }, () => {
       setMetOn("");
@@ -206,10 +200,7 @@ function MeetingForm({
           type="date"
           value={value}
         />
-        <Button disabled={pending || !value} size="sm" type="submit">
-          {pending ? (
-            <Loader2 className="animate-spin motion-reduce:animate-none" />
-          ) : null}
+        <Button disabled={!value} size="sm" type="submit">
           Save
         </Button>
         {onCancel ? (

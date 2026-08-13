@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 import { CompanyLogo } from "@/components/applications/company-logo";
 import { StatusBadge } from "@/components/applications/status-badge";
@@ -215,11 +215,13 @@ function SavedRow({
   onEdit,
   onRetrySync,
   onStatusChange,
+  syncing,
 }: {
   application: ApplicationPayload;
   onEdit: () => void;
   onRetrySync: () => void;
   onStatusChange: (status: ApplicationStatus) => void;
+  syncing: boolean;
 }) {
   const failed = application.sheetSyncStatus === "failed";
 
@@ -234,13 +236,18 @@ function SavedRow({
             <button
               aria-label="Not in the spreadsheet — retry"
               className="shrink-0"
+              disabled={syncing}
               onClick={(event) => {
                 event.stopPropagation();
                 onRetrySync();
               }}
               type="button"
             >
-              <AlertTriangle className="size-3.5 text-destructive" />
+              {syncing ? (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+              ) : (
+                <AlertTriangle className="size-3.5 text-destructive" />
+              )}
             </button>
           ) : null}
           <span className="w-5 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
@@ -291,6 +298,7 @@ export function ApplicationsTable({
   onStartEdit,
   onStatusChange,
   newDraft,
+  syncingId,
 }: {
   applications: ApplicationPayload[];
   creating: boolean;
@@ -309,6 +317,7 @@ export function ApplicationsTable({
     status: ApplicationStatus,
   ) => void;
   newDraft: RowDraft;
+  syncingId: string | null;
 }) {
   return (
     <table className="w-full table-fixed border-collapse text-sm">
@@ -346,6 +355,7 @@ export function ApplicationsTable({
               onEdit={() => onStartEdit(application)}
               onRetrySync={() => onRetrySync(application.id)}
               onStatusChange={(status) => onStatusChange(application, status)}
+              syncing={syncingId === application.id}
             />
           ),
         )}
