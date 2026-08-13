@@ -397,6 +397,92 @@ export type UpdateReadingItemBody = {
   expectedVersion: number;
 };
 
+export type ConnectionMeetingPayload = {
+  id: string;
+  connectionId: string;
+  userId: string;
+  metOn: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BareConnectionPayload = {
+  id: string;
+  userId: string;
+  name: string;
+  headline: string | null;
+  company: string | null;
+  role: string | null;
+  location: string | null;
+  linkedinUrl: string | null;
+  email: string | null;
+  phone: string | null;
+  xUrl: string | null;
+  avatarUrl: string | null;
+  notes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** The list needs to say when someone was last seen without the whole log. */
+export type ConnectionSummaryPayload = BareConnectionPayload & {
+  lastMetOn: string | null;
+  meetingCount: number;
+};
+
+export type ConnectionDetailPayload = BareConnectionPayload & {
+  meetings: ConnectionMeetingPayload[];
+};
+
+export type RolodexResponse = {
+  connections: ConnectionSummaryPayload[];
+};
+
+export type ConnectionResponse = {
+  connection: ConnectionDetailPayload;
+};
+
+export type CreateConnectionResponse = ConnectionResponse & {
+  /** The profile was already saved; the existing card came back instead. */
+  duplicate: boolean;
+};
+
+export type ConnectionMeetingResponse = {
+  meeting: ConnectionMeetingPayload;
+};
+
+export type CreateConnectionBody = {
+  input: string;
+};
+
+export type UpdateConnectionBody = {
+  name?: string;
+  headline?: string | null;
+  company?: string | null;
+  role?: string | null;
+  location?: string | null;
+  /** Any form of the profile link; the server stores the canonical one. */
+  linkedinUrl?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  /** A handle or a link; the server stores it as an x.com URL. */
+  xUrl?: string | null;
+  notes?: string | null;
+  expectedVersion: number;
+};
+
+export type CreateConnectionMeetingBody = {
+  metOn: string;
+  notes?: string | null;
+};
+
+export type UpdateConnectionMeetingBody = {
+  metOn?: string;
+  notes?: string | null;
+};
+
 /** The tldraw editor snapshot document, stored and replayed verbatim. */
 export type WhiteboardDocument = Record<string, unknown>;
 

@@ -1,14 +1,20 @@
 import type {
   ApplicationMutationResponse,
   ApplicationsResponse,
+  BareConnectionPayload,
   BareMetricPayload,
   BareTaskPayload,
   BookSearchResponse,
   BuildNoteDispatchesResponse,
   BuildNoteResponse,
   BuildNotesResponse,
+  ConnectionMeetingResponse,
+  ConnectionResponse,
   CreateApplicationBody,
   CreateBuildNoteBody,
+  CreateConnectionBody,
+  CreateConnectionMeetingBody,
+  CreateConnectionResponse,
   CreateMetricBody,
   CreateReadingItemBody,
   CreateReadingItemResponse,
@@ -23,6 +29,7 @@ import type {
   ReadingItemResponse,
   ReadingResponse,
   ReorderPlannerBody,
+  RolodexResponse,
   ScheduleTaskBody,
   SetMetricLinkBody,
   SpreadsheetTabsResponse,
@@ -30,6 +37,8 @@ import type {
   TaskMutationResponse,
   UpdateApplicationBody,
   UpdateBuildNoteBody,
+  UpdateConnectionBody,
+  UpdateConnectionMeetingBody,
   UpdateMetricBody,
   UpdateReadingItemBody,
   UpdateTaskBody,
@@ -317,6 +326,69 @@ export function deleteReadingItem(itemId: string) {
   return request<ReadingItemResponse>(`/api/reading/${itemId}`, {
     method: "DELETE",
   });
+}
+
+export function fetchConnections() {
+  return request<RolodexResponse>("/api/rolodex");
+}
+
+export function fetchConnection(connectionId: string) {
+  return request<ConnectionResponse>(`/api/rolodex/${connectionId}`);
+}
+
+export function createConnection(body: CreateConnectionBody) {
+  return request<CreateConnectionResponse>("/api/rolodex", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateConnection(
+  connectionId: string,
+  body: UpdateConnectionBody,
+) {
+  return request<ConnectionResponse>(`/api/rolodex/${connectionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteConnection(connectionId: string) {
+  return request<{ connection: BareConnectionPayload }>(
+    `/api/rolodex/${connectionId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function createConnectionMeeting(
+  connectionId: string,
+  body: CreateConnectionMeetingBody,
+) {
+  return request<ConnectionMeetingResponse>(
+    `/api/rolodex/${connectionId}/meetings`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export function updateConnectionMeeting(
+  connectionId: string,
+  meetingId: string,
+  body: UpdateConnectionMeetingBody,
+) {
+  return request<ConnectionMeetingResponse>(
+    `/api/rolodex/${connectionId}/meetings/${meetingId}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteConnectionMeeting(
+  connectionId: string,
+  meetingId: string,
+) {
+  return request<ConnectionMeetingResponse>(
+    `/api/rolodex/${connectionId}/meetings/${meetingId}`,
+    { method: "DELETE" },
+  );
 }
 
 export function fetchSpreadsheetTabs() {
