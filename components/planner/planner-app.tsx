@@ -170,7 +170,13 @@ export function PlannerApp({
         <AppShell
           headerAction={<TodayButton />}
           onSignOut={() => void signOut()}
-          rail={<MetricsRail todayKey={todayKey} />}
+          rail={
+            <MetricsRail
+              onViewChange={changeView}
+              todayKey={todayKey}
+              view={view}
+            />
+          }
           title="Daily planner"
           userEmail={userEmail}
         >

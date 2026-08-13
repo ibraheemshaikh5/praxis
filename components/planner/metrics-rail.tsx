@@ -7,6 +7,10 @@ import {
   MetricFormDialog,
   type MetricFormValues,
 } from "@/components/planner/metric-form-dialog";
+import {
+  PlannerViewToggle,
+  type PlannerView,
+} from "@/components/planner/planner-view-toggle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -190,7 +194,15 @@ function RailSkeleton() {
   );
 }
 
-export function MetricsRail({ todayKey }: { todayKey: string }) {
+export function MetricsRail({
+  onViewChange,
+  todayKey,
+  view,
+}: {
+  onViewChange: (view: PlannerView) => void;
+  todayKey: string;
+  view: PlannerView;
+}) {
   const { data, isLoading, isError } = useMetrics(todayKey);
   const createMetric = useCreateMetric();
   const updateMetric = useUpdateMetric();
@@ -228,6 +240,10 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="hidden xl:block">
+        <PlannerViewToggle onChange={onViewChange} view={view} />
+      </div>
+
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-tight">Goals</h2>
         <Button
@@ -262,8 +278,7 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
           {metrics.map((metric) => (
             <MetricCard
               archiving={
-                archiveMetric.isPending &&
-                archiveMetric.variables === metric.id
+                archiveMetric.isPending && archiveMetric.variables === metric.id
               }
               key={metric.id}
               metric={metric}
