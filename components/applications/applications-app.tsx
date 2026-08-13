@@ -207,11 +207,7 @@ export function ApplicationsApp({
   }
 
   return (
-    <AppShell
-      onSignOut={() => void signOut()}
-      title="Applications"
-      userEmail={userEmail}
-    >
+    <AppShell onSignOut={signOut} title="Applications" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <header className="mb-6 flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

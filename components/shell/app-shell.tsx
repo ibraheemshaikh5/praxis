@@ -51,9 +51,16 @@ export function AppShell({
   rail?: React.ReactNode;
   title: string;
   userEmail: string | null;
-  onSignOut: () => void;
+  onSignOut: () => void | Promise<void>;
 }) {
   const pathname = usePathname();
+  const [signOutPending, startSignOutTransition] = React.useTransition();
+
+  const handleSignOut = () => {
+    startSignOutTransition(async () => {
+      await onSignOut();
+    });
+  };
 
   return (
     <div className="grid min-h-[100dvh] bg-background lg:grid-cols-[248px_minmax(0,1fr)]">
@@ -103,7 +110,8 @@ export function AppShell({
 
           <div className="mt-auto px-2">
             <ShellAccountPanel
-              onSignOut={onSignOut}
+              onSignOut={handleSignOut}
+              signOutPending={signOutPending}
               themeControl={<ThemeToggle />}
               userEmail={userEmail}
             />
@@ -152,7 +160,11 @@ export function AppShell({
             {headerAction}
             <div className="flex items-center gap-1 lg:hidden">
               <ThemeToggle />
-              <ShellAccountMenu onSignOut={onSignOut} userEmail={userEmail} />
+              <ShellAccountMenu
+                onSignOut={handleSignOut}
+                signOutPending={signOutPending}
+                userEmail={userEmail}
+              />
             </div>
           </div>
         </header>

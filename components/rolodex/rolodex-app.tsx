@@ -16,11 +16,7 @@ export function RolodexApp({ userEmail }: { userEmail: string | null }) {
   const connections = data?.connections ?? [];
 
   return (
-    <AppShell
-      onSignOut={() => void signOut()}
-      title="Rolodex"
-      userEmail={userEmail}
-    >
+    <AppShell onSignOut={signOut} title="Rolodex" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <header className="mb-10 flex flex-col gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Rolodex</h1>

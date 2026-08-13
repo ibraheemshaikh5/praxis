@@ -8,7 +8,7 @@ export function CareersApp({ userEmail }: { userEmail: string | null }) {
   return (
     <AppShell
       headerAction={<PageWhiteboard />}
-      onSignOut={() => void signOut()}
+      onSignOut={signOut}
       title="Careers"
       userEmail={userEmail}
     >
