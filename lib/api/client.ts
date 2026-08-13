@@ -19,10 +19,14 @@ import type {
   GoogleConnectionResponse,
   ImportApplicationsResponse,
   MetricsResponse,
+  AttachmentMutationResponse,
   PlannerResponse,
   ReadingItemResponse,
   ReadingResponse,
   ReorderPlannerBody,
+  ReserveAttachmentBody,
+  ReserveAttachmentResponse,
+  RetryAttachmentResponse,
   ScheduleTaskBody,
   SetMetricLinkBody,
   SpreadsheetTabsResponse,
@@ -202,6 +206,44 @@ export function scheduleTask(taskId: string, body: ScheduleTaskBody) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function attachmentUrl(taskId: string, attachmentId: string) {
+  return `/api/tasks/${taskId}/attachments/${attachmentId}`;
+}
+
+export function reserveAttachment(
+  taskId: string,
+  body: ReserveAttachmentBody,
+) {
+  return request<ReserveAttachmentResponse>(
+    `/api/tasks/${taskId}/attachments`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function confirmAttachment(taskId: string, attachmentId: string) {
+  return request<AttachmentMutationResponse>(
+    `${attachmentUrl(taskId, attachmentId)}/confirm`,
+    { method: "POST" },
+  );
+}
+
+export function retryAttachment(taskId: string, attachmentId: string) {
+  return request<RetryAttachmentResponse>(
+    `${attachmentUrl(taskId, attachmentId)}/retry`,
+    { method: "POST" },
+  );
+}
+
+export function deleteAttachment(taskId: string, attachmentId: string) {
+  return request<AttachmentMutationResponse>(
+    attachmentUrl(taskId, attachmentId),
+    { method: "DELETE" },
+  );
 }
 
 export function reorderPlanner(body: ReorderPlannerBody) {

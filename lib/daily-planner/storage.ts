@@ -8,6 +8,7 @@ export type UploadTarget = {
 
 export interface AttachmentStorage {
   createUploadTarget(path: string): Promise<UploadTarget>;
+  createDownloadUrl(path: string): Promise<string>;
   objectExists(path: string): Promise<boolean>;
   remove(paths: string[]): Promise<void>;
 }

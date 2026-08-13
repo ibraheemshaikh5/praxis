@@ -536,6 +536,28 @@ export class DailyPlannerService {
     return confirmed;
   }
 
+  async getAttachmentDownloadUrl(
+    userId: string,
+    taskId: string,
+    attachmentId: string,
+    storage: AttachmentStorage,
+  ) {
+    const attachment = await this.findOwnedAttachment(
+      userId,
+      taskId,
+      attachmentId,
+    );
+    if (
+      !attachment ||
+      attachment.deletedAt ||
+      attachment.uploadStatus !== "ready"
+    ) {
+      throw new NotFoundError();
+    }
+
+    return storage.createDownloadUrl(attachment.storagePath);
+  }
+
   async retryAttachment(userId: string, taskId: string, attachmentId: string) {
     await this.requireActiveTask(userId, taskId);
     const [attachment] = await this.db

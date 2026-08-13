@@ -163,6 +163,22 @@ describeDatabase("daily planner database integration", () => {
     );
     expect(confirmed.uploadStatus).toBe("ready");
 
+    const downloadUrl = await service.getAttachmentDownloadUrl(
+      USER_ONE,
+      task.id,
+      attachment.id,
+      storage,
+    );
+    expect(downloadUrl).toBe(`https://download.test/${retry.storagePath}`);
+    await expect(
+      service.getAttachmentDownloadUrl(
+        USER_TWO,
+        task.id,
+        attachment.id,
+        storage,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+
     const deleted = await service.deleteAttachment(
       USER_ONE,
       task.id,
@@ -262,6 +278,10 @@ class FakeAttachmentStorage implements AttachmentStorage {
 
   async createUploadTarget(path: string): Promise<UploadTarget> {
     return { path, signedUrl: `https://upload.test/${path}`, token: "token" };
+  }
+
+  async createDownloadUrl(path: string) {
+    return `https://download.test/${path}`;
   }
 
   async objectExists(path: string) {

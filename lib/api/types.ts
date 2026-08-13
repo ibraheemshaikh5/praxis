@@ -146,6 +146,32 @@ export type TaskMutationResponse = {
   entry: BarePlannerEntryPayload | null;
 };
 
+export type UploadTargetPayload = {
+  path: string;
+  signedUrl: string;
+  token: string;
+};
+
+export type ReserveAttachmentBody = {
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+};
+
+export type ReserveAttachmentResponse = {
+  attachment: TaskAttachmentPayload;
+  upload: UploadTargetPayload;
+};
+
+export type RetryAttachmentResponse = {
+  attachment: TaskAttachmentPayload;
+  upload: UploadTargetPayload;
+};
+
+export type AttachmentMutationResponse = {
+  attachment: TaskAttachmentPayload;
+};
+
 export type CreateTaskBody = {
   title: string;
   notes?: string | null;
