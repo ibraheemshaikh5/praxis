@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Check,
   Compass,
+  Contact,
 } from "lucide-react";
 
 import {
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", icon: CalendarDays, label: "Daily planner" },
   { href: "/applications", icon: Briefcase, label: "Applications" },
   { href: "/reading", icon: BookOpen, label: "Reading" },
+  { href: "/rolodex", icon: Contact, label: "Rolodex" },
   { href: "/careers", icon: Compass, label: "Careers" },
 ];
 
