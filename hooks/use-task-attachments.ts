@@ -44,6 +44,22 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
   const client = useQueryClient();
   const [pending, setPending] = React.useState<PendingAttachment[]>([]);
   const filesRef = React.useRef(new Map<string, File>());
+  const pendingRef = React.useRef<PendingAttachment[]>([]);
+
+  React.useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  // Local previews are object URLs; release them on unmount so a tab full of
+  // task rows doesn't pin every previewed file in memory indefinitely.
+  React.useEffect(
+    () => () => {
+      for (const item of pendingRef.current) {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      }
+    },
+    [],
+  );
 
   const invalidate = React.useCallback(
     () =>
@@ -53,6 +69,15 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
     [client, dateKey],
   );
 
+  /** Removes a pending entry by id, revoking its preview URL if it has one. */
+  const dropPending = React.useCallback((attachmentId: string) => {
+    setPending((current) => {
+      const existing = current.find((item) => item.id === attachmentId);
+      if (existing?.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+      return current.filter((item) => item.id !== attachmentId);
+    });
+  }, []);
+
   const runUpload = React.useCallback(
     async (
       attachmentId: string,
@@ -61,17 +86,18 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
       file: File,
     ) => {
       filesRef.current.set(attachmentId, file);
-      setPending((current) => [
-        ...current.filter((item) => item.id !== attachmentId),
-        {
-          id: attachmentId,
-          fileName,
-          previewUrl: file.type.startsWith("image/")
-            ? URL.createObjectURL(file)
-            : null,
-          status: "uploading",
-        },
-      ]);
+      const previewUrl = file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : null;
+
+      setPending((current) => {
+        const existing = current.find((item) => item.id === attachmentId);
+        if (existing?.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+        return [
+          ...current.filter((item) => item.id !== attachmentId),
+          { id: attachmentId, fileName, previewUrl, status: "uploading" },
+        ];
+      });
 
       try {
         const supabase = createBrowserSupabaseClient();
@@ -86,9 +112,7 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
 
       try {
         await confirmAttachment(taskId, attachmentId);
-        setPending((current) =>
-          current.filter((item) => item.id !== attachmentId),
-        );
+        dropPending(attachmentId);
         filesRef.current.delete(attachmentId);
         void invalidate();
       } catch {
@@ -99,7 +123,7 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
         );
       }
     },
-    [invalidate, taskId],
+    [dropPending, invalidate, taskId],
   );
 
   const upload = React.useCallback(
@@ -175,12 +199,13 @@ export function useTaskAttachments(taskId: string, dateKey: PlannerDateKey) {
     [runUpload, taskId],
   );
 
-  const dismiss = React.useCallback((attachmentId: string) => {
-    setPending((current) =>
-      current.filter((item) => item.id !== attachmentId),
-    );
-    filesRef.current.delete(attachmentId);
-  }, []);
+  const dismiss = React.useCallback(
+    (attachmentId: string) => {
+      dropPending(attachmentId);
+      filesRef.current.delete(attachmentId);
+    },
+    [dropPending],
+  );
 
   const remove = React.useCallback(
     (attachmentId: string) => {
