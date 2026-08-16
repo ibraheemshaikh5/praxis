@@ -57,7 +57,7 @@ export function AppShell({
 
   return (
     <div className="grid min-h-[100dvh] bg-background lg:grid-cols-[248px_minmax(0,1fr)]">
-      <aside className="relative hidden overflow-hidden border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
+      <aside className="relative hidden overflow-hidden border-r border-sidebar-border bg-sidebar lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 planner-grid opacity-50"
