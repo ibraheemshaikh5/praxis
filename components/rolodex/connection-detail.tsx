@@ -48,11 +48,7 @@ export function ConnectionDetail({
   const lastMet = connection.meetings[0] ?? null;
 
   return (
-    <AppShell
-      onSignOut={() => void signOut()}
-      title="Rolodex"
-      userEmail={userEmail}
-    >
+    <AppShell onSignOut={signOut} title="Rolodex" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <div className="mb-8 flex items-center justify-between gap-3">
           <Link

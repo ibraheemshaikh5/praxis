@@ -36,11 +36,7 @@ export function ReadingDetail({
   const isBook = item.kind === "book";
 
   return (
-    <AppShell
-      onSignOut={() => void signOut()}
-      title="Reading"
-      userEmail={userEmail}
-    >
+    <AppShell onSignOut={signOut} title="Reading" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <div className="mb-8 flex items-center justify-between gap-3">
           <Link

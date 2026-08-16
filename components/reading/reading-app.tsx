@@ -63,11 +63,7 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
   }
 
   return (
-    <AppShell
-      onSignOut={() => void signOut()}
-      title="Reading"
-      userEmail={userEmail}
-    >
+    <AppShell onSignOut={signOut} title="Reading" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <header className="mb-10 flex flex-col gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Reading</h1>

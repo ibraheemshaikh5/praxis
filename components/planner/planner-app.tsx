@@ -169,7 +169,7 @@ export function PlannerApp({
       <TimelineNavProvider>
         <AppShell
           headerAction={<TodayButton />}
-          onSignOut={() => void signOut()}
+          onSignOut={signOut}
           rail={<MetricsRail todayKey={todayKey} />}
           title="Daily planner"
           userEmail={userEmail}
