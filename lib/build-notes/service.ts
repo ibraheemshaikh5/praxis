@@ -35,7 +35,7 @@ export class BuildNotesService {
       .where(
         and(eq(buildNotes.userId, userId), eq(buildNotes.pageKey, query.key)),
       )
-      .orderBy(asc(buildNotes.priority), asc(buildNotes.position));
+      .orderBy(desc(buildNotes.createdAt));
 
     return {
       dispatchConfigured: isDispatchConfigured(),
