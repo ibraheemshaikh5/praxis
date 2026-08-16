@@ -179,8 +179,18 @@ function TaskPanels({
   return (
     <Tabs onValueChange={(value) => setTab(value as TaskTab)} value={tab}>
       <TabsList>
-        <TabsTab value="tasks">Tasks</TabsTab>
-        <TabsTab value="cloud">Cloud</TabsTab>
+        <TabsTab
+          className="data-selected:bg-primary/15 data-selected:text-primary"
+          value="tasks"
+        >
+          Tasks
+        </TabsTab>
+        <TabsTab
+          className="data-selected:bg-primary/15 data-selected:text-primary"
+          value="cloud"
+        >
+          Cloud
+        </TabsTab>
       </TabsList>
 
       <TabsPanel className="space-y-3" value="tasks">
