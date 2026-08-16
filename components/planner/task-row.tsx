@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 export function TaskRow({
   entry,
   onDelete,
+  onOpenDraft,
   onSchedule,
   onScheduleAtTime,
   onToggle,
@@ -27,6 +28,7 @@ export function TaskRow({
 }: {
   entry: PlannerEntryPayload;
   onDelete: (entry: PlannerEntryPayload) => void;
+  onOpenDraft?: () => void;
   onSchedule: (input: {
     entry: PlannerEntryPayload;
     plannerDate: PlannerDateKey;
@@ -190,6 +192,7 @@ export function TaskRow({
               skipCommitRef.current = true;
               const active = document.activeElement;
               if (active instanceof HTMLElement) active.blur();
+              onOpenDraft?.();
             }}
             value={title}
             variant="title"
