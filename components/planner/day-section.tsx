@@ -118,6 +118,11 @@ export function DaySection({
   const headingId = `day-heading-${dateKey}`;
   const entryIds = entries.map((entry) => entry.id);
 
+  function openDraft() {
+    setDraftKey((key) => key + 1);
+    setDraftOpen(true);
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -301,6 +306,7 @@ export function DaySection({
                       entry={entry}
                       key={entry.id}
                       onDelete={onDelete}
+                      onOpenDraft={openDraft}
                       onSchedule={onSchedule}
                       onScheduleAtTime={onScheduleAtTime}
                       onToggle={onToggle}
@@ -334,10 +340,7 @@ export function DaySection({
             <div className="mt-2">
               <Button
                 className="w-full justify-start rounded-xl border-dashed text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setDraftKey((key) => key + 1);
-                  setDraftOpen(true);
-                }}
+                onClick={openDraft}
                 variant="outline"
               >
                 <CirclePlus data-icon="inline-start" />
