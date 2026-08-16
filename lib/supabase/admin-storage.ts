@@ -7,6 +7,7 @@ import {
 } from "@/lib/daily-planner/storage";
 
 const REMOVE_BATCH_SIZE = 1000;
+const DOWNLOAD_URL_TTL_SECONDS = 3600;
 
 export function createAdminAttachmentStorage(): AttachmentStorage {
   const supabase = createClient(
@@ -31,6 +32,15 @@ export function createAdminAttachmentStorage(): AttachmentStorage {
         signedUrl: data.signedUrl,
         token: data.token,
       };
+    },
+
+    async createDownloadUrl(path) {
+      const { data, error } = await bucket.createSignedUrl(
+        path,
+        DOWNLOAD_URL_TTL_SECONDS,
+      );
+      if (error) throw new StorageError(error.message);
+      return data.signedUrl;
     },
 
     async objectExists(path) {

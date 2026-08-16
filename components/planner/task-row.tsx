@@ -3,17 +3,22 @@
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Paperclip, Trash2 } from "lucide-react";
 
 import { EditableText } from "@/components/planner/editable-text";
+import { TaskAttachments } from "@/components/planner/task-attachments";
 import { TaskDateMenu } from "@/components/planner/task-date-menu";
 import { TaskMetricMenu } from "@/components/planner/task-metric-menu";
 import { TaskTimeMenu } from "@/components/planner/task-time-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTaskAttachments } from "@/hooks/use-task-attachments";
 import type { PlannerEntryPayload } from "@/lib/api/types";
 import { formatTimeBlock, type PlannerDateKey } from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
+
+const ATTACHMENT_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/heic,application/pdf,text/plain,text/markdown";
 
 export function TaskRow({
   entry,
@@ -64,6 +69,8 @@ export function TaskRow({
   const notesRef = React.useRef<HTMLTextAreaElement>(null);
   const cardRef = React.useRef<HTMLElement | null>(null);
   const skipCommitRef = React.useRef(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const attachments = useTaskAttachments(entry.taskId, entry.plannerDate);
 
   // Sync from server only while unfocused so a refetch never yanks the caret.
   /* eslint-disable react-hooks/set-state-in-effect -- Server refetches update the editable draft only while it is not focused. */
@@ -134,6 +141,17 @@ export function TaskRow({
     commit();
   }
 
+  function handlePaste(event: React.ClipboardEvent<HTMLElement>) {
+    const files = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (files.length === 0) return;
+    event.preventDefault();
+    attachments.upload(files);
+  }
+
   return (
     <div
       className={cn(
@@ -172,6 +190,7 @@ export function TaskRow({
         )}
         onBlur={handleRowBlur}
         onFocus={() => setFocused(true)}
+        onPaste={handlePaste}
         ref={cardRef}
       >
         <Checkbox
@@ -225,6 +244,25 @@ export function TaskRow({
             </button>
           )}
 
+          <TaskAttachments
+            attachments={entry.task.attachments}
+            onDismiss={attachments.dismiss}
+            onRemove={attachments.remove}
+            onRetry={attachments.retry}
+            pending={attachments.pending}
+            taskId={entry.taskId}
+          />
+          <input
+            accept={ATTACHMENT_ACCEPT}
+            className="sr-only"
+            multiple
+            onChange={(event) => {
+              if (event.target.files) attachments.upload(event.target.files);
+              event.target.value = "";
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -247,6 +285,15 @@ export function TaskRow({
             pending={schedulePending}
           />
           <TaskMetricMenu taskId={entry.taskId} taskTitle={entry.task.title} />
+          <Button
+            aria-label={`Attach a file to ${entry.task.title}`}
+            className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
+            onClick={() => fileInputRef.current?.click()}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <Paperclip />
+          </Button>
           <Button
             aria-label={`Remove ${entry.task.title}`}
             className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
