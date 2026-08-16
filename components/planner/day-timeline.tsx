@@ -114,7 +114,9 @@ export function DayTimeline({
   const ensureDateLoaded = React.useCallback((date: PlannerDateKey) => {
     const page = plannerPageIndex(date);
     setPageIndices((current) =>
-      current.includes(page) ? current : [...current, page].sort((a, b) => a - b),
+      current.includes(page)
+        ? current
+        : [...current, page].sort((a, b) => a - b),
     );
   }, []);
 
@@ -180,7 +182,9 @@ export function DayTimeline({
             todayKey={todayKey}
           />
         </div>
-        <PlannerViewToggle onChange={onViewChange} view={view} />
+        <div className="xl:hidden">
+          <PlannerViewToggle onChange={onViewChange} view={view} />
+        </div>
       </div>
 
       <PlannerDayFeed
@@ -212,7 +216,8 @@ export function DayTimeline({
 function sectionScrollTop(container: HTMLElement, section: HTMLElement) {
   return (
     container.scrollTop +
-    (section.getBoundingClientRect().top - container.getBoundingClientRect().top)
+    (section.getBoundingClientRect().top -
+      container.getBoundingClientRect().top)
   );
 }
 
