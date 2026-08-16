@@ -17,9 +17,11 @@ import {
   setMetricLink,
   updateMetric,
 } from "@/lib/api/client";
+import { applyOptimistically } from "@/lib/api/optimistic";
 import type {
   CreateMetricBody,
   MetricLinkState,
+  MetricsResponse,
   SetMetricLinkBody,
   UpdateMetricBody,
 } from "@/lib/api/types";
@@ -90,7 +92,35 @@ export function useUpdateMetric() {
   return useMutation({
     mutationFn: (input: { metricId: string; body: UpdateMetricBody }) =>
       updateMetric(input.metricId, input.body),
-    onError: (error) => reportError(error, "Could not update that goal."),
+    // The edited fields show immediately; the progress numbers they feed
+    // (counts, history) are recomputed by the refetch.
+    async onMutate(input) {
+      const rollback = await applyOptimistically(
+        client,
+        [metricsKeys.all],
+        () => {
+          client.setQueriesData<MetricsResponse>(
+            { queryKey: metricsKeys.all },
+            (current) =>
+              current
+                ? {
+                    ...current,
+                    metrics: current.metrics.map((metric) =>
+                      metric.id === input.metricId
+                        ? { ...metric, ...input.body }
+                        : metric,
+                    ),
+                  }
+                : current,
+          );
+        },
+      );
+      return { rollback };
+    },
+    onError: (error, _input, context) => {
+      context?.rollback();
+      reportError(error, "Could not update that goal.");
+    },
     onSettled: () => invalidateMetrics(client),
   });
 }
@@ -100,7 +130,32 @@ export function useArchiveMetric() {
 
   return useMutation({
     mutationFn: (metricId: string) => archiveMetric(metricId),
-    onError: (error) => reportError(error, "Could not archive that goal."),
+    // The list only carries live goals, so archiving is a removal.
+    async onMutate(metricId) {
+      const rollback = await applyOptimistically(
+        client,
+        [metricsKeys.all],
+        () => {
+          client.setQueriesData<MetricsResponse>(
+            { queryKey: metricsKeys.all },
+            (current) =>
+              current
+                ? {
+                    ...current,
+                    metrics: current.metrics.filter(
+                      (metric) => metric.id !== metricId,
+                    ),
+                  }
+                : current,
+          );
+        },
+      );
+      return { rollback };
+    },
+    onError: (error, _input, context) => {
+      context?.rollback();
+      reportError(error, "Could not archive that goal.");
+    },
     onSettled: () => invalidateMetrics(client),
   });
 }

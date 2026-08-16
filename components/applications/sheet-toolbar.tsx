@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 export function SheetToolbar({
   connection,
   cycle,
+  disconnecting,
   importing,
   isLoading,
   onCycleChange,
@@ -32,6 +33,7 @@ export function SheetToolbar({
 }: {
   connection: GoogleConnectionPayload | undefined;
   cycle: string;
+  disconnecting?: boolean;
   importing?: boolean;
   isLoading?: boolean;
   onCycleChange: (cycle: string) => void;
@@ -108,18 +110,17 @@ export function SheetToolbar({
               Open spreadsheet
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onClick={onDisconnect} variant="destructive">
-            Disconnect
+          <DropdownMenuItem
+            disabled={disconnecting}
+            onClick={onDisconnect}
+            variant="destructive"
+          >
+            {disconnecting ? "Disconnecting" : "Disconnect"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        disabled={importing}
-        onClick={onImport}
-        size="sm"
-        variant="ghost"
-      >
+      <Button disabled={importing} onClick={onImport} size="sm" variant="ghost">
         <RefreshCw
           className={cn(importing && "animate-spin motion-reduce:animate-none")}
           data-icon="inline-start"

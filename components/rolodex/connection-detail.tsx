@@ -121,16 +121,15 @@ export function ConnectionDetail({
             <div className="mt-5">
               <ContactDetails
                 connection={connection}
-                onSave={(fields, done) =>
-                  updateConnection.mutate(
-                    {
-                      connectionId: connection.id,
-                      body: { ...fields, expectedVersion: connection.version },
-                    },
-                    { onSuccess: done },
-                  )
-                }
-                pending={updateConnection.isPending}
+                // The card updates optimistically, so the form closes at once
+                // and a rejected write rolls back with a toast.
+                onSave={(fields, done) => {
+                  updateConnection.mutate({
+                    connectionId: connection.id,
+                    body: { ...fields, expectedVersion: connection.version },
+                  });
+                  done();
+                }}
               />
             </div>
           </div>
@@ -145,7 +144,6 @@ export function ConnectionDetail({
                 body: { notes, expectedVersion: connection.version },
               })
             }
-            pending={updateConnection.isPending}
           />
 
           <MeetingLog
@@ -195,11 +193,9 @@ export function ConnectionDetail({
 function GeneralNotes({
   connection,
   onSave,
-  pending,
 }: {
   connection: ConnectionDetailPayload;
   onSave: (notes: string | null) => void;
-  pending: boolean;
 }) {
   const saved = connection.notes ?? "";
 
@@ -232,13 +228,10 @@ function GeneralNotes({
 
       <div className="mt-2 flex items-center gap-2">
         <Button
-          disabled={!dirty || pending}
+          disabled={!dirty}
           onClick={() => onSave(value.trim() || null)}
           size="sm"
         >
-          {pending ? (
-            <Loader2 className="animate-spin motion-reduce:animate-none" />
-          ) : null}
           Save
         </Button>
         {dirty ? (

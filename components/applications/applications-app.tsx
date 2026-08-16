@@ -219,6 +219,7 @@ export function ApplicationsApp({
             <SheetToolbar
               connection={connection}
               cycle={cycle}
+              disconnecting={disconnectGoogle.isPending}
               importing={importApplications.isPending}
               isLoading={connectionQuery.isLoading}
               onCycleChange={(next) => {
@@ -269,6 +270,11 @@ export function ApplicationsApp({
             }
             onStartEdit={startEdit}
             onStatusChange={handleStatusChange}
+            syncingId={
+              syncApplication.isPending
+                ? (syncApplication.variables ?? null)
+                : null
+            }
           />
         ) : null}
       </div>

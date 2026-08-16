@@ -309,11 +309,17 @@ function TaskComposer({ pageKey }: { pageKey: string }) {
   const create = useCreateBuildNote(pageKey);
   const trimmed = body.trim();
 
+  // The row renders optimistically, so the composer clears right away and
+  // only restores the text if the write fails with nothing typed since.
   function submit() {
-    if (!trimmed || create.isPending) return;
+    if (!trimmed) return;
+    setBody("");
     create.mutate(
       { body: trimmed, priority },
-      { onSuccess: () => setBody("") },
+      {
+        onError: () =>
+          setBody((current) => (current.trim() ? current : trimmed)),
+      },
     );
   }
 
@@ -341,7 +347,7 @@ function TaskComposer({ pageKey }: { pageKey: string }) {
       <Button
         aria-label="Add task"
         className="mt-0.5"
-        disabled={!trimmed || create.isPending}
+        disabled={!trimmed}
         onClick={submit}
         size="icon-sm"
         variant="outline"

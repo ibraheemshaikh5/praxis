@@ -67,18 +67,27 @@ export class ApiError extends Error {
   }
 }
 
+// Mutations never retry, so without a deadline a stalled connection would
+// leave the interface pending forever. Generous enough for the slow calls
+// (spreadsheet round-trips, dispatching an agent session).
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
 
   try {
     response = await fetch(path, {
       ...init,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         ...(init?.body ? { "content-type": "application/json" } : {}),
         ...init?.headers,
       },
     });
-  } catch {
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "TimeoutError") {
+      throw new ApiError(0, "TIMEOUT", "The server took too long to respond.");
+    }
     throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
   }
 

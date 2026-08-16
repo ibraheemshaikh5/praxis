@@ -3,7 +3,7 @@
 import * as React from "react";
 // Lucide carries no brand marks, so LinkedIn and X are a link and an at-sign;
 // the value beside them already reads as what it is.
-import { AtSign, Link, Loader2, Mail, Phone } from "lucide-react";
+import { AtSign, Link, Mail, Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +34,9 @@ const FIELDS: {
 export function ContactDetails({
   connection,
   onSave,
-  pending,
 }: {
   connection: ConnectionDetailPayload;
   onSave: (fields: Partial<UpdateConnectionBody>, done: () => void) => void;
-  pending: boolean;
 }) {
   const [editing, setEditing] = React.useState(false);
   const saved = savedFields(connection);
@@ -50,7 +48,6 @@ export function ContactDetails({
         initial={saved}
         onCancel={() => setEditing(false)}
         onSave={(fields) => onSave(fields, () => setEditing(false))}
-        pending={pending}
       />
     );
   }
@@ -101,18 +98,15 @@ function ContactForm({
   initial,
   onCancel,
   onSave,
-  pending,
 }: {
   initial: ContactFields;
   onCancel: () => void;
   onSave: (fields: Partial<UpdateConnectionBody>) => void;
-  pending: boolean;
 }) {
   const [draft, setDraft] = React.useState(initial);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (pending) return;
 
     // Only what changed is sent, so an untouched field cannot fail validation
     // it was never subject to.
@@ -154,10 +148,7 @@ function ContactForm({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button disabled={pending} size="sm" type="submit">
-          {pending ? (
-            <Loader2 className="animate-spin motion-reduce:animate-none" />
-          ) : null}
+        <Button size="sm" type="submit">
           Save
         </Button>
         <Button onClick={onCancel} size="sm" type="button" variant="ghost">

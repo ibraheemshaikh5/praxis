@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ type Mode = "sign-in" | "sign-up";
 type Pending = null | "credentials" | "google";
 
 export function LoginForm({ initialError = "" }: { initialError?: string }) {
-  const router = useRouter();
   const [mode, setMode] = React.useState<Mode>("sign-in");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -46,6 +44,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
 
       if (authError) {
         setError(authError.message);
+        setPending(null);
         return;
       }
 
@@ -53,14 +52,18 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
       if (!data.session) {
         setNotice("Check your email to confirm the account, then sign in.");
         setMode("sign-in");
+        setPending(null);
         return;
       }
 
-      router.replace("/");
-      router.refresh();
+      // A hard navigation, mirroring the 401 handler in lib/api/client.ts:
+      // the fresh document starts from the new session with nothing cached
+      // from the signed-out one. The pending state is only cleared on the
+      // paths that keep the user here, so the button spins until the planner
+      // takes over.
+      window.location.assign("/");
     } catch {
       setError("Could not reach the server. Check your connection.");
-    } finally {
       setPending(null);
     }
   }
