@@ -161,12 +161,31 @@ describeDatabase("daily planner database integration", () => {
       to: "2026-07-30",
       inbox: "false",
     });
-    expect(planner.entries.map(({ id }) => id)).toEqual(
-      expect.arrayContaining([
-        second.entry!.id,
-        first.entry!.id,
-        third.entry!.id,
-      ]),
+    // The omitted entry keeps its own position rather than colliding with one
+    // handed to a reordered entry, so the requested order still holds.
+    expect(planner.entries.map(({ id }) => id)).toEqual([
+      second.entry!.id,
+      first.entry!.id,
+      third.entry!.id,
+    ]);
+
+    // Omitting an entry that sits between two reordered ones must not hand its
+    // position to either of them.
+    await service.reorderPlanner(USER_ONE, {
+      plannerDate: "2026-07-30",
+      orderedEntryIds: [third.entry!.id, second.entry!.id],
+    });
+    const afterPartial = await service.listPlanner(USER_ONE, {
+      from: "2026-07-30",
+      to: "2026-07-30",
+      inbox: "false",
+    });
+    const positions = afterPartial.entries.map(({ position }) => position);
+    expect(new Set(positions).size).toBe(positions.length);
+    expect(
+      afterPartial.entries.findIndex(({ id }) => id === third.entry!.id),
+    ).toBeLessThan(
+      afterPartial.entries.findIndex(({ id }) => id === second.entry!.id),
     );
 
     // An entry that is no longer active (closed elsewhere) still conflicts.

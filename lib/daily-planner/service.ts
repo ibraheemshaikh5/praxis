@@ -378,7 +378,7 @@ export class DailyPlannerService {
   async reorderPlanner(userId: string, input: ReorderPlannerInput) {
     return this.db.transaction(async (transaction) => {
       const activeEntries = await transaction
-        .select({ id: plannerEntries.id })
+        .select({ id: plannerEntries.id, position: plannerEntries.position })
         .from(plannerEntries)
         .where(
           and(
@@ -389,18 +389,28 @@ export class DailyPlannerService {
         )
         .for("update");
 
-      const activeIds = new Set(activeEntries.map(({ id }) => id));
-      const stale = input.orderedEntryIds.some((id) => !activeIds.has(id));
+      const positionById = new Map(
+        activeEntries.map(({ id, position }) => [id, position]),
+      );
+      const stale = input.orderedEntryIds.some((id) => !positionById.has(id));
       if (stale) {
         throw new ConflictError(
           "The planner day changed; refresh before reordering",
         );
       }
 
+      // Reassign only the positions already held by the requested entries, so
+      // an active entry left out of the request (added or moved after the
+      // caller last fetched the day) keeps its position and can't collide
+      // with one handed out here.
+      const slots = input.orderedEntryIds
+        .map((id) => positionById.get(id)!)
+        .sort((a, b) => a - b);
+
       for (const [index, entryId] of input.orderedEntryIds.entries()) {
         await transaction
           .update(plannerEntries)
-          .set({ position: (index + 1) * POSITION_STEP })
+          .set({ position: slots[index] })
           .where(
             and(
               eq(plannerEntries.id, entryId),
