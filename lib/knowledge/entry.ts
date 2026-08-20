@@ -1,10 +1,15 @@
+import { parseYouTubeVideoId, youTubeWatchUrl } from "./youtube";
+
 /**
- * One input bar takes both kinds of entry, so the text itself decides: a link
- * is an article, anything else is a book title.
+ * One input bar takes every kind of entry, so the text itself decides: a
+ * YouTube link is a video, any other link is an article, anything else is a
+ * book title.
  */
 
 export type ParsedEntry =
-  { kind: "article"; url: string } | { kind: "book"; title: string };
+  | { kind: "article"; url: string }
+  | { kind: "video"; url: string; videoId: string }
+  | { kind: "book"; title: string };
 
 /**
  * A hostname typed without a scheme ("theatlantic.com/2026/..."). The host is
@@ -41,7 +46,12 @@ export function parseEntry(input: string): ParsedEntry {
   if (!candidate) return { kind: "book", title: trimmed };
 
   const url = normalizeArticleUrl(candidate);
-  return url ? { kind: "article", url } : { kind: "book", title: trimmed };
+  if (!url) return { kind: "book", title: trimmed };
+
+  const videoId = parseYouTubeVideoId(url);
+  return videoId
+    ? { kind: "video", url: youTubeWatchUrl(videoId), videoId }
+    : { kind: "article", url };
 }
 
 /** Returns the canonical form of an http(s) URL, or null if it is neither. */

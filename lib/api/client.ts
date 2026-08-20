@@ -17,8 +17,8 @@ import type {
   CreateConnectionMeetingBody,
   CreateConnectionResponse,
   CreateMetricBody,
-  CreateReadingItemBody,
-  CreateReadingItemResponse,
+  CreateKnowledgeItemBody,
+  CreateKnowledgeItemResponse,
   CreateTaskBody,
   CreateWhiteboardBody,
   DispatchBuildNotesBody,
@@ -27,8 +27,8 @@ import type {
   ImportApplicationsResponse,
   MetricsResponse,
   PlannerResponse,
-  ReadingItemResponse,
-  ReadingResponse,
+  KnowledgeItemResponse,
+  KnowledgeResponse,
   ReorderPlannerBody,
   ReserveAttachmentBody,
   ReserveAttachmentResponse,
@@ -44,7 +44,7 @@ import type {
   UpdateConnectionBody,
   UpdateConnectionMeetingBody,
   UpdateMetricBody,
-  UpdateReadingItemBody,
+  UpdateKnowledgeItemBody,
   UpdateTaskBody,
   UpdateWhiteboardBody,
   WhiteboardResponse,
@@ -230,10 +230,7 @@ export function attachmentUrl(taskId: string, attachmentId: string) {
   return `/api/tasks/${taskId}/attachments/${attachmentId}`;
 }
 
-export function reserveAttachment(
-  taskId: string,
-  body: ReserveAttachmentBody,
-) {
+export function reserveAttachment(taskId: string, body: ReserveAttachmentBody) {
   return request<ReserveAttachmentResponse>(
     `/api/tasks/${taskId}/attachments`,
     {
@@ -346,35 +343,38 @@ export function importApplications(cycle?: string) {
   });
 }
 
-export function fetchReadingItems() {
-  return request<ReadingResponse>("/api/reading");
+export function fetchKnowledgeItems() {
+  return request<KnowledgeResponse>("/api/knowledge");
 }
 
-export function fetchReadingItem(itemId: string) {
-  return request<ReadingItemResponse>(`/api/reading/${itemId}`);
+export function fetchKnowledgeItem(itemId: string) {
+  return request<KnowledgeItemResponse>(`/api/knowledge/${itemId}`);
 }
 
 export function searchBooks(title: string) {
   const query = new URLSearchParams({ title });
-  return request<BookSearchResponse>(`/api/reading/search?${query}`);
+  return request<BookSearchResponse>(`/api/knowledge/search?${query}`);
 }
 
-export function createReadingItem(body: CreateReadingItemBody) {
-  return request<CreateReadingItemResponse>("/api/reading", {
+export function createKnowledgeItem(body: CreateKnowledgeItemBody) {
+  return request<CreateKnowledgeItemResponse>("/api/knowledge", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateReadingItem(itemId: string, body: UpdateReadingItemBody) {
-  return request<ReadingItemResponse>(`/api/reading/${itemId}`, {
+export function updateKnowledgeItem(
+  itemId: string,
+  body: UpdateKnowledgeItemBody,
+) {
+  return request<KnowledgeItemResponse>(`/api/knowledge/${itemId}`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
 }
 
-export function deleteReadingItem(itemId: string) {
-  return request<ReadingItemResponse>(`/api/reading/${itemId}`, {
+export function deleteKnowledgeItem(itemId: string) {
+  return request<KnowledgeItemResponse>(`/api/knowledge/${itemId}`, {
     method: "DELETE",
   });
 }

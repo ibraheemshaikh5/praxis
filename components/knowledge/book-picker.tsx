@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 
-import { CoverArt } from "@/components/reading/cover-art";
+import { CoverArt } from "@/components/knowledge/cover-art";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBookSearch } from "@/hooks/use-reading";
+import { useBookSearch } from "@/hooks/use-knowledge";
 import type { BookCandidatePayload } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 

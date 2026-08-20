@@ -2,20 +2,20 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { ConflictError, NotFoundError } from "@/lib/daily-planner/errors";
 import type { Database } from "@/lib/db/client";
-import { profiles, readingItems } from "@/lib/db/schema";
+import { profiles, knowledgeItems } from "@/lib/db/schema";
 
-import type { UpdateReadingItemInput } from "./contracts";
+import type { UpdateKnowledgeItemInput } from "./contracts";
 import type { ResolvedEntry } from "./resolve";
 
-export class ReadingService {
+export class KnowledgeService {
   constructor(private readonly db: Database) {}
 
   async listItems(userId: string) {
     const items = await this.db
       .select()
-      .from(readingItems)
-      .where(eq(readingItems.userId, userId))
-      .orderBy(desc(readingItems.createdAt));
+      .from(knowledgeItems)
+      .where(eq(knowledgeItems.userId, userId))
+      .orderBy(desc(knowledgeItems.createdAt));
 
     return { items };
   }
@@ -23,8 +23,10 @@ export class ReadingService {
   async getItem(userId: string, itemId: string) {
     const [item] = await this.db
       .select()
-      .from(readingItems)
-      .where(and(eq(readingItems.id, itemId), eq(readingItems.userId, userId)));
+      .from(knowledgeItems)
+      .where(
+        and(eq(knowledgeItems.id, itemId), eq(knowledgeItems.userId, userId)),
+      );
 
     if (!item) throw new NotFoundError();
     return item;
@@ -44,7 +46,7 @@ export class ReadingService {
 
     try {
       const [item] = await this.db
-        .insert(readingItems)
+        .insert(knowledgeItems)
         .values({
           userId,
           kind: resolved.kind,
@@ -71,10 +73,10 @@ export class ReadingService {
   async updateItem(
     userId: string,
     itemId: string,
-    input: UpdateReadingItemInput,
+    input: UpdateKnowledgeItemInput,
   ) {
     const [updated] = await this.db
-      .update(readingItems)
+      .update(knowledgeItems)
       .set({
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.author !== undefined ? { author: input.author } : {}),
@@ -83,9 +85,9 @@ export class ReadingService {
       })
       .where(
         and(
-          eq(readingItems.id, itemId),
-          eq(readingItems.userId, userId),
-          eq(readingItems.version, input.expectedVersion),
+          eq(knowledgeItems.id, itemId),
+          eq(knowledgeItems.userId, userId),
+          eq(knowledgeItems.version, input.expectedVersion),
         ),
       )
       .returning();
@@ -104,8 +106,10 @@ export class ReadingService {
   /** Removal is outright: nothing else in the schema points at the row. */
   async deleteItem(userId: string, itemId: string) {
     const [deleted] = await this.db
-      .delete(readingItems)
-      .where(and(eq(readingItems.id, itemId), eq(readingItems.userId, userId)))
+      .delete(knowledgeItems)
+      .where(
+        and(eq(knowledgeItems.id, itemId), eq(knowledgeItems.userId, userId)),
+      )
       .returning();
 
     if (!deleted) throw new NotFoundError();
@@ -115,8 +119,10 @@ export class ReadingService {
   private async findByUrl(userId: string, url: string) {
     const [item] = await this.db
       .select()
-      .from(readingItems)
-      .where(and(eq(readingItems.userId, userId), eq(readingItems.url, url)));
+      .from(knowledgeItems)
+      .where(
+        and(eq(knowledgeItems.userId, userId), eq(knowledgeItems.url, url)),
+      );
 
     return item ?? null;
   }
@@ -136,6 +142,6 @@ function isUrlCollision(error: unknown) {
     typeof error === "object" &&
     error !== null &&
     "constraint_name" in error &&
-    error.constraint_name === "reading_items_user_url_key"
+    error.constraint_name === "knowledge_items_user_url_key"
   );
 }

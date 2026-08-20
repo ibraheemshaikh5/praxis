@@ -10,26 +10,26 @@ import { toast } from "sonner";
 
 import {
   ApiError,
-  createReadingItem,
-  deleteReadingItem,
-  fetchReadingItem,
-  fetchReadingItems,
+  createKnowledgeItem,
+  deleteKnowledgeItem,
+  fetchKnowledgeItem,
+  fetchKnowledgeItems,
   searchBooks,
-  updateReadingItem,
+  updateKnowledgeItem,
 } from "@/lib/api/client";
 import type {
-  CreateReadingItemBody,
-  ReadingItemPayload,
-  ReadingItemResponse,
-  ReadingResponse,
-  UpdateReadingItemBody,
+  CreateKnowledgeItemBody,
+  KnowledgeItemPayload,
+  KnowledgeItemResponse,
+  KnowledgeResponse,
+  UpdateKnowledgeItemBody,
 } from "@/lib/api/types";
 
-export const readingKeys = {
-  all: ["reading"] as const,
-  list: ["reading", "list"] as const,
-  item: (itemId: string) => ["reading", "item", itemId] as const,
-  search: (title: string) => ["reading", "search", title] as const,
+export const knowledgeKeys = {
+  all: ["knowledge"] as const,
+  list: ["knowledge", "list"] as const,
+  item: (itemId: string) => ["knowledge", "item", itemId] as const,
+  search: (title: string) => ["knowledge", "search", title] as const,
 };
 
 function reportError(error: unknown, fallback: string) {
@@ -41,26 +41,26 @@ function reportError(error: unknown, fallback: string) {
   toast.error(fallback);
 }
 
-function invalidateReading(client: QueryClient) {
-  return client.invalidateQueries({ queryKey: readingKeys.all });
+function invalidateKnowledge(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: knowledgeKeys.all });
 }
 
-export function useReadingItems() {
+export function useKnowledgeItems() {
   return useQuery({
-    queryKey: readingKeys.list,
-    queryFn: () => fetchReadingItems(),
+    queryKey: knowledgeKeys.list,
+    queryFn: () => fetchKnowledgeItems(),
     staleTime: 15_000,
   });
 }
 
-export function useReadingItem(
+export function useKnowledgeItem(
   itemId: string,
-  initialItem: ReadingItemPayload,
+  initialItem: KnowledgeItemPayload,
 ) {
   return useQuery({
-    queryKey: readingKeys.item(itemId),
-    queryFn: () => fetchReadingItem(itemId),
-    initialData: { item: initialItem } satisfies ReadingItemResponse,
+    queryKey: knowledgeKeys.item(itemId),
+    queryFn: () => fetchKnowledgeItem(itemId),
+    initialData: { item: initialItem } satisfies KnowledgeItemResponse,
     staleTime: 15_000,
   });
 }
@@ -71,18 +71,18 @@ export function useReadingItem(
  */
 export function useBookSearch(title: string | null) {
   return useQuery({
-    queryKey: readingKeys.search(title ?? ""),
+    queryKey: knowledgeKeys.search(title ?? ""),
     queryFn: () => searchBooks(title ?? ""),
     enabled: title !== null && title.trim() !== "",
     staleTime: 5 * 60_000,
   });
 }
 
-export function useCreateReadingItem() {
+export function useCreateKnowledgeItem() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: CreateReadingItemBody) => createReadingItem(body),
+    mutationFn: (body: CreateKnowledgeItemBody) => createKnowledgeItem(body),
     onSuccess: (result) => {
       if (result.duplicate) {
         toast.info(`Already saved: ${result.item.title}`);
@@ -91,33 +91,33 @@ export function useCreateReadingItem() {
       toast.success(`Saved ${result.item.title}.`);
     },
     onError: (error) => reportError(error, "Could not save that."),
-    onSettled: () => invalidateReading(client),
+    onSettled: () => invalidateKnowledge(client),
   });
 }
 
-export function useUpdateReadingItem() {
+export function useUpdateKnowledgeItem() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { itemId: string; body: UpdateReadingItemBody }) =>
-      updateReadingItem(input.itemId, input.body),
+    mutationFn: (input: { itemId: string; body: UpdateKnowledgeItemBody }) =>
+      updateKnowledgeItem(input.itemId, input.body),
     // Swapping a cover is a direct manipulation of what is on screen, so the
     // image changes first and rolls back if the write is rejected.
     onMutate: async (input) => {
-      const itemKey = readingKeys.item(input.itemId);
+      const itemKey = knowledgeKeys.item(input.itemId);
       await Promise.all([
-        client.cancelQueries({ queryKey: readingKeys.list }),
+        client.cancelQueries({ queryKey: knowledgeKeys.list }),
         client.cancelQueries({ queryKey: itemKey }),
       ]);
 
-      const previousList = client.getQueryData<ReadingResponse>(
-        readingKeys.list,
+      const previousList = client.getQueryData<KnowledgeResponse>(
+        knowledgeKeys.list,
       );
-      const previousItem = client.getQueryData<ReadingItemResponse>(itemKey);
+      const previousItem = client.getQueryData<KnowledgeItemResponse>(itemKey);
       const fields = stripVersion(input.body);
 
       if (previousList) {
-        client.setQueryData<ReadingResponse>(readingKeys.list, {
+        client.setQueryData<KnowledgeResponse>(knowledgeKeys.list, {
           items: previousList.items.map((item) =>
             item.id === input.itemId ? { ...item, ...fields } : item,
           ),
@@ -125,7 +125,7 @@ export function useUpdateReadingItem() {
       }
 
       if (previousItem) {
-        client.setQueryData<ReadingItemResponse>(itemKey, {
+        client.setQueryData<KnowledgeItemResponse>(itemKey, {
           item: { ...previousItem.item, ...fields },
         });
       }
@@ -134,11 +134,11 @@ export function useUpdateReadingItem() {
     },
     onError: (error, input, context) => {
       if (context?.previousList) {
-        client.setQueryData(readingKeys.list, context.previousList);
+        client.setQueryData(knowledgeKeys.list, context.previousList);
       }
       if (context?.previousItem) {
         client.setQueryData(
-          readingKeys.item(input.itemId),
+          knowledgeKeys.item(input.itemId),
           context.previousItem,
         );
       }
@@ -147,11 +147,11 @@ export function useUpdateReadingItem() {
     // The write bumps the version, and the next edit has to send the new one:
     // swapping two covers in quick succession would otherwise be a conflict.
     onSuccess: (result) => {
-      client.setQueryData<ReadingItemResponse>(
-        readingKeys.item(result.item.id),
+      client.setQueryData<KnowledgeItemResponse>(
+        knowledgeKeys.item(result.item.id),
         result,
       );
-      client.setQueryData<ReadingResponse>(readingKeys.list, (current) =>
+      client.setQueryData<KnowledgeResponse>(knowledgeKeys.list, (current) =>
         current
           ? {
               items: current.items.map((item) =>
@@ -161,29 +161,29 @@ export function useUpdateReadingItem() {
           : current,
       );
     },
-    onSettled: () => invalidateReading(client),
+    onSettled: () => invalidateKnowledge(client),
   });
 }
 
-export function useDeleteReadingItem() {
+export function useDeleteKnowledgeItem() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: (itemId: string) => deleteReadingItem(itemId),
+    mutationFn: (itemId: string) => deleteKnowledgeItem(itemId),
     onSuccess: (result) => {
       // The detail page is still mounted while it navigates away; dropping the
       // entry keeps it from refetching a row that is gone.
-      client.removeQueries({ queryKey: readingKeys.item(result.item.id) });
+      client.removeQueries({ queryKey: knowledgeKeys.item(result.item.id) });
       toast.success(`Removed ${result.item.title}.`);
     },
     onError: (error) => reportError(error, "Could not remove that entry."),
-    onSettled: () => client.invalidateQueries({ queryKey: readingKeys.list }),
+    onSettled: () => client.invalidateQueries({ queryKey: knowledgeKeys.list }),
   });
 }
 
 /** `expectedVersion` is a write-time guard, not a field the card displays. */
-function stripVersion(body: UpdateReadingItemBody) {
-  const fields: Partial<UpdateReadingItemBody> = { ...body };
+function stripVersion(body: UpdateKnowledgeItemBody) {
+  const fields: Partial<UpdateKnowledgeItemBody> = { ...body };
   delete fields.expectedVersion;
   return fields;
 }

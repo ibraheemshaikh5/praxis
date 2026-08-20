@@ -6,45 +6,51 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
-import { CoverArt } from "@/components/reading/cover-art";
-import { CoverPicker } from "@/components/reading/cover-picker";
-import { RemoveReadingItemDialog } from "@/components/reading/remove-reading-item";
-import { SiteIcon } from "@/components/reading/site-icon";
+import { CoverArt } from "@/components/knowledge/cover-art";
+import { CoverPicker } from "@/components/knowledge/cover-picker";
+import { RemoveKnowledgeItemDialog } from "@/components/knowledge/remove-knowledge-item";
+import { SiteIcon } from "@/components/knowledge/site-icon";
 import { AppShell } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useReadingItem, useUpdateReadingItem } from "@/hooks/use-reading";
+import {
+  useKnowledgeItem,
+  useUpdateKnowledgeItem,
+} from "@/hooks/use-knowledge";
 import { signOut } from "@/lib/auth/actions";
-import type { ReadingItemPayload } from "@/lib/api/types";
-import { isHttpUrl } from "@/lib/reading/entry";
+import type { KnowledgeItemPayload } from "@/lib/api/types";
+import { isHttpUrl } from "@/lib/knowledge/entry";
+import { parseYouTubeVideoId, youTubeEmbedUrl } from "@/lib/knowledge/youtube";
 import { cn } from "@/lib/utils";
 
-export function ReadingDetail({
+export function KnowledgeDetail({
   initialItem,
   userEmail,
 }: {
-  initialItem: ReadingItemPayload;
+  initialItem: KnowledgeItemPayload;
   userEmail: string | null;
 }) {
   const router = useRouter();
-  const { data } = useReadingItem(initialItem.id, initialItem);
+  const { data } = useKnowledgeItem(initialItem.id, initialItem);
   const item = data.item;
 
-  const updateItem = useUpdateReadingItem();
+  const updateItem = useUpdateKnowledgeItem();
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
 
   const isBook = item.kind === "book";
+  const videoId =
+    item.kind === "video" ? parseYouTubeVideoId(item.url ?? "") : null;
 
   return (
-    <AppShell onSignOut={signOut} title="Reading" userEmail={userEmail}>
+    <AppShell onSignOut={signOut} title="Knowledge" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <div className="mb-8 flex items-center justify-between gap-3">
           <Link
             className="inline-flex items-center gap-1 rounded-4xl text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            href="/reading"
+            href="/knowledge"
           >
             <ChevronLeft className="size-4" />
-            Reading
+            Knowledge
           </Link>
 
           <Button
@@ -61,18 +67,30 @@ export function ReadingDetail({
             <div
               className={cn(
                 "relative overflow-hidden bg-muted shadow-lg ring-1 ring-foreground/10",
-                isBook
-                  ? "aspect-[2/3] w-40 rounded-xl sm:w-48"
-                  : "aspect-[16/10] w-full rounded-2xl sm:w-80",
+                isBook && "aspect-[2/3] w-40 rounded-xl sm:w-48",
+                item.kind === "article" &&
+                  "aspect-[16/10] w-full rounded-2xl sm:w-80",
+                item.kind === "video" &&
+                  "aspect-video w-full rounded-2xl sm:w-[28rem]",
               )}
             >
-              <CoverArt
-                author={item.author}
-                className="object-cover"
-                imageUrl={item.imageUrl}
-                kind={item.kind}
-                title={item.title}
-              />
+              {videoId ? (
+                <iframe
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="size-full"
+                  src={youTubeEmbedUrl(videoId)}
+                  title={item.title}
+                />
+              ) : (
+                <CoverArt
+                  author={item.author}
+                  className="object-cover"
+                  imageUrl={item.imageUrl}
+                  kind={item.kind}
+                  title={item.title}
+                />
+              )}
               {isBook ? (
                 <span
                   aria-hidden
@@ -127,17 +145,20 @@ export function ReadingDetail({
                   pending={updateItem.isPending}
                 />
               ) : (
-                <SourceLink href={item.url} label="Open article" />
+                <SourceLink
+                  href={item.url}
+                  label={item.kind === "video" ? "Open video" : "Open article"}
+                />
               )}
             </div>
           </div>
         </div>
       </div>
 
-      <RemoveReadingItemDialog
+      <RemoveKnowledgeItemDialog
         item={item}
         onOpenChange={setConfirmingRemoval}
-        onRemoved={() => router.push("/reading")}
+        onRemoved={() => router.push("/knowledge")}
         open={confirmingRemoval}
       />
     </AppShell>
@@ -149,7 +170,7 @@ function BookLink({
   onSave,
   pending,
 }: {
-  item: ReadingItemPayload;
+  item: KnowledgeItemPayload;
   onSave: (pdfUrl: string | null) => void;
   pending: boolean;
 }) {

@@ -37,7 +37,7 @@ export function CoverArt({
   author?: string | null;
   className?: string;
   imageUrl: string | null;
-  kind: "book" | "article";
+  kind: "book" | "article" | "video";
   title: string;
 }) {
   const [failed, setFailed] = React.useState<string | null>(null);

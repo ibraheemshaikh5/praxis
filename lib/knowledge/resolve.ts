@@ -2,7 +2,7 @@ import "server-only";
 
 import { ValidationError } from "@/lib/daily-planner/errors";
 
-import type { CreateReadingItemInput } from "./contracts";
+import type { CreateKnowledgeItemInput } from "./contracts";
 import {
   buildBookSearchUrl,
   buildWorkLookupUrl,
@@ -14,6 +14,7 @@ import { buildArchiveMetadataUrl, parseArchivePdfUrl } from "./ebook";
 import { hostLabel, parseEntry } from "./entry";
 import { fallbackArticleMetadata, parseArticleMetadata } from "./metadata";
 import { isFetchableUrl } from "./safe-url";
+import { buildYouTubeOEmbedUrl, parseYouTubeOEmbed } from "./youtube";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -26,10 +27,10 @@ const MAX_HTML_BYTES = 512_000;
 // Publishers serve a different page to a client with no user agent, and some
 // serve none at all.
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; PraxisReading/1.0; +https://github.com/praxis)";
+  "Mozilla/5.0 (compatible; PraxisKnowledge/1.0; +https://github.com/praxis)";
 
 export type ResolvedEntry = {
-  kind: "book" | "article";
+  kind: "book" | "article" | "video";
   title: string;
   author: string | null;
   source: string | null;
@@ -40,9 +41,10 @@ export type ResolvedEntry = {
 };
 
 export async function resolveCreate(
-  input: CreateReadingItemInput,
+  input: CreateKnowledgeItemInput,
 ): Promise<ResolvedEntry> {
   const entry = parseEntry(input.input);
+  if (entry.kind === "video") return resolveVideo(entry.url, entry.videoId);
   if (entry.kind === "article") return resolveArticle(entry.url);
 
   // The reader looked at the catalogue and wanted none of it.
@@ -73,6 +75,28 @@ async function resolveArticle(url: string): Promise<ResolvedEntry> {
     title: metadata.title || (hostLabel(url) ?? url),
     author: metadata.author,
     source: metadata.source,
+    url,
+    pdfUrl: null,
+    imageUrl: metadata.imageUrl,
+    coverOptions: [],
+  };
+}
+
+async function resolveVideo(
+  url: string,
+  videoId: string,
+): Promise<ResolvedEntry> {
+  const metadata = parseYouTubeOEmbed(
+    await readJson(buildYouTubeOEmbedUrl(videoId)),
+    videoId,
+  );
+
+  return {
+    kind: "video",
+    title: metadata.title,
+    // The channel is the byline.
+    author: metadata.author,
+    source: "YouTube",
     url,
     pdfUrl: null,
     imageUrl: metadata.imageUrl,

@@ -7,24 +7,28 @@ import {
   parseBookCandidates,
   parseBookQuery,
   workCoverUrl,
-} from "@/lib/reading/covers";
+} from "@/lib/knowledge/covers";
 import {
-  createReadingItemSchema,
-  updateReadingItemSchema,
-} from "@/lib/reading/contracts";
-import { parseArchivePdfUrl } from "@/lib/reading/ebook";
+  createKnowledgeItemSchema,
+  updateKnowledgeItemSchema,
+} from "@/lib/knowledge/contracts";
+import { parseArchivePdfUrl } from "@/lib/knowledge/ebook";
 import {
   hostLabel,
   normalizeArticleUrl,
   parseEntry,
-} from "@/lib/reading/entry";
+} from "@/lib/knowledge/entry";
 import {
   fallbackArticleMetadata,
   parseArticleMetadata,
-} from "@/lib/reading/metadata";
-import { isFetchableUrl } from "@/lib/reading/safe-url";
+} from "@/lib/knowledge/metadata";
+import { isFetchableUrl } from "@/lib/knowledge/safe-url";
+import {
+  parseYouTubeOEmbed,
+  parseYouTubeVideoId,
+} from "@/lib/knowledge/youtube";
 
-describe("reading entry", () => {
+describe("knowledge entry", () => {
   it("reads a pasted link as an article", () => {
     expect(parseEntry("  https://www.newyorker.com/magazine/piece  ")).toEqual({
       kind: "article",
@@ -383,19 +387,19 @@ describe("fetchable urls", () => {
   });
 });
 
-describe("reading contracts", () => {
+describe("knowledge contracts", () => {
   it("takes one line of input", () => {
-    expect(createReadingItemSchema.parse({ input: "  Dune  " })).toEqual({
+    expect(createKnowledgeItemSchema.parse({ input: "  Dune  " })).toEqual({
       input: "Dune",
     });
-    expect(createReadingItemSchema.safeParse({ input: "  " }).success).toBe(
+    expect(createKnowledgeItemSchema.safeParse({ input: "  " }).success).toBe(
       false,
     );
   });
 
   it("takes a chosen work only in the catalogue's own key form", () => {
     expect(
-      createReadingItemSchema.parse({
+      createKnowledgeItemSchema.parse({
         input: "Walden",
         workKey: " /works/OL55649W ",
       }),
@@ -403,7 +407,8 @@ describe("reading contracts", () => {
 
     for (const workKey of ["OL55649W", "/works/OL55649M", "/books/OL1W"]) {
       expect(
-        createReadingItemSchema.safeParse({ input: "Walden", workKey }).success,
+        createKnowledgeItemSchema.safeParse({ input: "Walden", workKey })
+          .success,
         workKey,
       ).toBe(false);
     }
@@ -411,14 +416,14 @@ describe("reading contracts", () => {
 
   it("only accepts http links for the stored URLs", () => {
     expect(
-      updateReadingItemSchema.safeParse({
+      updateKnowledgeItemSchema.safeParse({
         pdfUrl: "javascript:alert(1)",
         expectedVersion: 1,
       }).success,
     ).toBe(false);
 
     expect(
-      updateReadingItemSchema.parse({
+      updateKnowledgeItemSchema.parse({
         pdfUrl: " https://example.com/book.pdf ",
         expectedVersion: 2,
       }),
@@ -427,11 +432,71 @@ describe("reading contracts", () => {
 
   it("clears a link with null but rejects an empty update", () => {
     expect(
-      updateReadingItemSchema.parse({ pdfUrl: null, expectedVersion: 1 }),
+      updateKnowledgeItemSchema.parse({ pdfUrl: null, expectedVersion: 1 }),
     ).toEqual({ pdfUrl: null, expectedVersion: 1 });
 
     expect(
-      updateReadingItemSchema.safeParse({ expectedVersion: 1 }).success,
+      updateKnowledgeItemSchema.safeParse({ expectedVersion: 1 }).success,
     ).toBe(false);
+  });
+});
+
+describe("youtube links", () => {
+  it("reads every link form as one video", () => {
+    const forms = [
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://youtube.com/watch?v=dQw4w9WgXcQ&list=PL1&index=2",
+      "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://youtu.be/dQw4w9WgXcQ?si=abc123",
+      "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+      "https://www.youtube.com/embed/dQw4w9WgXcQ",
+      "https://www.youtube.com/live/dQw4w9WgXcQ",
+      "youtu.be/dQw4w9WgXcQ",
+    ];
+
+    for (const form of forms) {
+      expect(parseEntry(form)).toEqual({
+        kind: "video",
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        videoId: "dQw4w9WgXcQ",
+      });
+    }
+  });
+
+  it("leaves a non-video youtube page an article", () => {
+    expect(parseEntry("https://www.youtube.com/@channel")).toEqual({
+      kind: "article",
+      url: "https://www.youtube.com/@channel",
+    });
+    expect(
+      parseYouTubeVideoId("https://www.youtube.com/watch?v=tooshort"),
+    ).toBe(null);
+    expect(parseYouTubeVideoId("https://vimeo.com/dQw4w9WgXcQ")).toBe(null);
+  });
+
+  it("reads the title, channel, and thumbnail from oEmbed", () => {
+    expect(
+      parseYouTubeOEmbed(
+        {
+          title: "  A talk  ",
+          author_name: "A channel",
+          thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        },
+        "dQw4w9WgXcQ",
+      ),
+    ).toEqual({
+      title: "A talk",
+      author: "A channel",
+      imageUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    });
+  });
+
+  it("falls back to the id and the default thumbnail", () => {
+    expect(parseYouTubeOEmbed(null, "dQw4w9WgXcQ")).toEqual({
+      title: "dQw4w9WgXcQ",
+      author: null,
+      imageUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    });
   });
 });
