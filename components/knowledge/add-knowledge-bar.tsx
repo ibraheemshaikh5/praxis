@@ -6,7 +6,7 @@ import { ArrowRight, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function AddReadingBar({
+export function AddKnowledgeBar({
   onChange,
   onSubmit,
   pending,

@@ -21,7 +21,7 @@ export type ApplicationRouteContext = {
   params: Promise<{ applicationId: string }>;
 };
 
-export type ReadingItemRouteContext = {
+export type KnowledgeItemRouteContext = {
   params: Promise<{ itemId: string }>;
 };
 
@@ -72,7 +72,9 @@ export async function resolveApplicationId(context: ApplicationRouteContext) {
   return parseUuid(applicationId, "applicationId");
 }
 
-export async function resolveReadingItemId(context: ReadingItemRouteContext) {
+export async function resolveKnowledgeItemId(
+  context: KnowledgeItemRouteContext,
+) {
   const { itemId } = await context.params;
   return parseUuid(itemId, "itemId");
 }

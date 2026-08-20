@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
-import { ReadingDetail } from "@/components/reading/reading-detail";
+import { KnowledgeDetail } from "@/components/knowledge/knowledge-detail";
 import { NotFoundError } from "@/lib/daily-planner/errors";
-import { toReadingItemPayload } from "@/lib/reading/payload";
-import { getReadingService } from "@/lib/reading/runtime";
+import { toKnowledgeItemPayload } from "@/lib/knowledge/payload";
+import { getKnowledgeService } from "@/lib/knowledge/runtime";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export default async function Page({
@@ -22,8 +22,8 @@ export default async function Page({
   if (!item) notFound();
 
   return (
-    <ReadingDetail
-      initialItem={toReadingItemPayload(item)}
+    <KnowledgeDetail
+      initialItem={toKnowledgeItemPayload(item)}
       userEmail={user.email ?? null}
     />
   );
@@ -31,7 +31,7 @@ export default async function Page({
 
 async function loadItem(userId: string, itemId: string) {
   try {
-    return await getReadingService().getItem(userId, itemId);
+    return await getKnowledgeService().getItem(userId, itemId);
   } catch (error) {
     if (error instanceof NotFoundError) return null;
     throw error;

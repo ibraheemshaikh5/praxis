@@ -10,14 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useDeleteReadingItem } from "@/hooks/use-reading";
+import { useDeleteKnowledgeItem } from "@/hooks/use-knowledge";
 import { cn } from "@/lib/utils";
 
 /**
  * Removal is outright and reachable from the shelf as well as the entry, so the
  * confirmation is shared and each place supplies only its own trigger.
  */
-export function RemoveReadingItemDialog({
+export function RemoveKnowledgeItemDialog({
   item,
   onOpenChange,
   onRemoved,
@@ -28,7 +28,7 @@ export function RemoveReadingItemDialog({
   onRemoved?: () => void;
   open: boolean;
 }) {
-  const deleteItem = useDeleteReadingItem();
+  const deleteItem = useDeleteKnowledgeItem();
 
   return (
     <Dialog

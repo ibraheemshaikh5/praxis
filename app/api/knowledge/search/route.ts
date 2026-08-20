@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { parseQuery, routeError } from "@/lib/api/routes";
-import { bookSearchSchema } from "@/lib/reading/contracts";
-import { searchBookCandidates } from "@/lib/reading/resolve";
+import { bookSearchSchema } from "@/lib/knowledge/contracts";
+import { searchBookCandidates } from "@/lib/knowledge/resolve";
 import { requireAuthenticatedUserId } from "@/lib/supabase/server";
 
 /**

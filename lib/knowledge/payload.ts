@@ -1,11 +1,13 @@
-import type { ReadingItemPayload } from "@/lib/api/types";
-import type { ReadingItem } from "@/lib/db/schema";
+import type { KnowledgeItemPayload } from "@/lib/api/types";
+import type { KnowledgeItem } from "@/lib/db/schema";
 
 /**
  * Route handlers serialize timestamps on the way out; a server component hands
  * the row to the client directly, so it converts them here instead.
  */
-export function toReadingItemPayload(item: ReadingItem): ReadingItemPayload {
+export function toKnowledgeItemPayload(
+  item: KnowledgeItem,
+): KnowledgeItemPayload {
   return {
     ...item,
     createdAt: item.createdAt.toISOString(),

@@ -2,7 +2,7 @@ import "server-only";
 
 import { ValidationError } from "@/lib/daily-planner/errors";
 
-import type { CreateReadingItemInput } from "./contracts";
+import type { CreateKnowledgeItemInput } from "./contracts";
 import {
   buildBookSearchUrl,
   buildWorkLookupUrl,
@@ -26,7 +26,7 @@ const MAX_HTML_BYTES = 512_000;
 // Publishers serve a different page to a client with no user agent, and some
 // serve none at all.
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; PraxisReading/1.0; +https://github.com/praxis)";
+  "Mozilla/5.0 (compatible; PraxisKnowledge/1.0; +https://github.com/praxis)";
 
 export type ResolvedEntry = {
   kind: "book" | "article";
@@ -40,7 +40,7 @@ export type ResolvedEntry = {
 };
 
 export async function resolveCreate(
-  input: CreateReadingItemInput,
+  input: CreateKnowledgeItemInput,
 ): Promise<ResolvedEntry> {
   const entry = parseEntry(input.input);
   if (entry.kind === "article") return resolveArticle(entry.url);

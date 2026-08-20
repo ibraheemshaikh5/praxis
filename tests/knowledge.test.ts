@@ -7,24 +7,24 @@ import {
   parseBookCandidates,
   parseBookQuery,
   workCoverUrl,
-} from "@/lib/reading/covers";
+} from "@/lib/knowledge/covers";
 import {
-  createReadingItemSchema,
-  updateReadingItemSchema,
-} from "@/lib/reading/contracts";
-import { parseArchivePdfUrl } from "@/lib/reading/ebook";
+  createKnowledgeItemSchema,
+  updateKnowledgeItemSchema,
+} from "@/lib/knowledge/contracts";
+import { parseArchivePdfUrl } from "@/lib/knowledge/ebook";
 import {
   hostLabel,
   normalizeArticleUrl,
   parseEntry,
-} from "@/lib/reading/entry";
+} from "@/lib/knowledge/entry";
 import {
   fallbackArticleMetadata,
   parseArticleMetadata,
-} from "@/lib/reading/metadata";
-import { isFetchableUrl } from "@/lib/reading/safe-url";
+} from "@/lib/knowledge/metadata";
+import { isFetchableUrl } from "@/lib/knowledge/safe-url";
 
-describe("reading entry", () => {
+describe("knowledge entry", () => {
   it("reads a pasted link as an article", () => {
     expect(parseEntry("  https://www.newyorker.com/magazine/piece  ")).toEqual({
       kind: "article",
@@ -383,19 +383,19 @@ describe("fetchable urls", () => {
   });
 });
 
-describe("reading contracts", () => {
+describe("knowledge contracts", () => {
   it("takes one line of input", () => {
-    expect(createReadingItemSchema.parse({ input: "  Dune  " })).toEqual({
+    expect(createKnowledgeItemSchema.parse({ input: "  Dune  " })).toEqual({
       input: "Dune",
     });
-    expect(createReadingItemSchema.safeParse({ input: "  " }).success).toBe(
+    expect(createKnowledgeItemSchema.safeParse({ input: "  " }).success).toBe(
       false,
     );
   });
 
   it("takes a chosen work only in the catalogue's own key form", () => {
     expect(
-      createReadingItemSchema.parse({
+      createKnowledgeItemSchema.parse({
         input: "Walden",
         workKey: " /works/OL55649W ",
       }),
@@ -403,7 +403,8 @@ describe("reading contracts", () => {
 
     for (const workKey of ["OL55649W", "/works/OL55649M", "/books/OL1W"]) {
       expect(
-        createReadingItemSchema.safeParse({ input: "Walden", workKey }).success,
+        createKnowledgeItemSchema.safeParse({ input: "Walden", workKey })
+          .success,
         workKey,
       ).toBe(false);
     }
@@ -411,14 +412,14 @@ describe("reading contracts", () => {
 
   it("only accepts http links for the stored URLs", () => {
     expect(
-      updateReadingItemSchema.safeParse({
+      updateKnowledgeItemSchema.safeParse({
         pdfUrl: "javascript:alert(1)",
         expectedVersion: 1,
       }).success,
     ).toBe(false);
 
     expect(
-      updateReadingItemSchema.parse({
+      updateKnowledgeItemSchema.parse({
         pdfUrl: " https://example.com/book.pdf ",
         expectedVersion: 2,
       }),
@@ -427,11 +428,11 @@ describe("reading contracts", () => {
 
   it("clears a link with null but rejects an empty update", () => {
     expect(
-      updateReadingItemSchema.parse({ pdfUrl: null, expectedVersion: 1 }),
+      updateKnowledgeItemSchema.parse({ pdfUrl: null, expectedVersion: 1 }),
     ).toEqual({ pdfUrl: null, expectedVersion: 1 });
 
     expect(
-      updateReadingItemSchema.safeParse({ expectedVersion: 1 }).success,
+      updateKnowledgeItemSchema.safeParse({ expectedVersion: 1 }).success,
     ).toBe(false);
   });
 });

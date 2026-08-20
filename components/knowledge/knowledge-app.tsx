@@ -2,24 +2,27 @@
 
 import * as React from "react";
 
-import { AddReadingBar } from "@/components/reading/add-reading-bar";
-import { BookPicker, type BookChoice } from "@/components/reading/book-picker";
-import { ArticleCard, BookCard } from "@/components/reading/reading-card";
+import { AddKnowledgeBar } from "@/components/knowledge/add-knowledge-bar";
+import {
+  BookPicker,
+  type BookChoice,
+} from "@/components/knowledge/book-picker";
+import { ArticleCard, BookCard } from "@/components/knowledge/knowledge-card";
 import { AppShell } from "@/components/shell/app-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useCreateReadingItem,
-  useReadingItems,
-  useUpdateReadingItem,
-} from "@/hooks/use-reading";
+  useCreateKnowledgeItem,
+  useKnowledgeItems,
+  useUpdateKnowledgeItem,
+} from "@/hooks/use-knowledge";
 import { signOut } from "@/lib/auth/actions";
-import type { ReadingItemPayload } from "@/lib/api/types";
-import { parseEntry } from "@/lib/reading/entry";
+import type { KnowledgeItemPayload } from "@/lib/api/types";
+import { parseEntry } from "@/lib/knowledge/entry";
 
-export function ReadingApp({ userEmail }: { userEmail: string | null }) {
-  const { data, isError, isLoading } = useReadingItems();
-  const createItem = useCreateReadingItem();
-  const updateItem = useUpdateReadingItem();
+export function KnowledgeApp({ userEmail }: { userEmail: string | null }) {
+  const { data, isError, isLoading } = useKnowledgeItems();
+  const createItem = useCreateKnowledgeItem();
+  const updateItem = useUpdateKnowledgeItem();
 
   const [entry, setEntry] = React.useState("");
   // The title the picker is open for, held apart from the bar so editing the
@@ -54,7 +57,7 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
     );
   }
 
-  function selectCover(item: ReadingItemPayload, cover: string) {
+  function selectCover(item: KnowledgeItemPayload, cover: string) {
     if (cover === item.imageUrl) return;
     updateItem.mutate({
       itemId: item.id,
@@ -63,11 +66,11 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
   }
 
   return (
-    <AppShell onSignOut={signOut} title="Reading" userEmail={userEmail}>
+    <AppShell onSignOut={signOut} title="Knowledge" userEmail={userEmail}>
       <div className="py-8 lg:py-10">
         <header className="mb-10 flex flex-col gap-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Reading</h1>
-          <AddReadingBar
+          <h1 className="text-2xl font-semibold tracking-tight">Knowledge</h1>
+          <AddKnowledgeBar
             onChange={setEntry}
             onSubmit={submitEntry}
             pending={createItem.isPending}
@@ -77,20 +80,20 @@ export function ReadingApp({ userEmail }: { userEmail: string | null }) {
 
         {isLoading ? (
           <div
-            aria-label="Loading reading list"
+            aria-label="Loading knowledge list"
             className="grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
             role="status"
           >
             {[0, 1, 2, 3, 4].map((index) => (
               <Skeleton className="aspect-[2/3] rounded-xl" key={index} />
             ))}
-            <span className="sr-only">Loading reading list</span>
+            <span className="sr-only">Loading knowledge list</span>
           </div>
         ) : null}
 
         {!isLoading && isError ? (
           <p className="text-sm text-muted-foreground">
-            Could not load your reading list. Try again shortly.
+            Could not load your knowledge list. Try again shortly.
           </p>
         ) : null}
 

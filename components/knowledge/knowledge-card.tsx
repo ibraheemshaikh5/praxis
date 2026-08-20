@@ -3,14 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { CoverArt } from "@/components/reading/cover-art";
-import { CoverPicker } from "@/components/reading/cover-picker";
+import { CoverArt } from "@/components/knowledge/cover-art";
+import { CoverPicker } from "@/components/knowledge/cover-picker";
 import {
   RemoveItemButton,
-  RemoveReadingItemDialog,
-} from "@/components/reading/remove-reading-item";
-import { SiteIcon } from "@/components/reading/site-icon";
-import type { ReadingItemPayload } from "@/lib/api/types";
+  RemoveKnowledgeItemDialog,
+} from "@/components/knowledge/remove-knowledge-item";
+import { SiteIcon } from "@/components/knowledge/site-icon";
+import type { KnowledgeItemPayload } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 const FOCUS_RING =
@@ -28,14 +28,14 @@ export function BookCard({
   item,
   onSelectCover,
 }: {
-  item: ReadingItemPayload;
+  item: KnowledgeItemPayload;
   onSelectCover: (cover: string) => void;
 }) {
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
 
   return (
     <article className="group relative">
-      <Link className={cn("block", FOCUS_RING)} href={`/reading/${item.id}`}>
+      <Link className={cn("block", FOCUS_RING)} href={`/knowledge/${item.id}`}>
         <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted shadow-sm ring-1 ring-foreground/10 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-xl motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
           <CoverArt
             author={item.author}
@@ -76,7 +76,7 @@ export function BookCard({
         />
       </div>
 
-      <RemoveReadingItemDialog
+      <RemoveKnowledgeItemDialog
         item={item}
         onOpenChange={setConfirmingRemoval}
         open={confirmingRemoval}
@@ -85,7 +85,7 @@ export function BookCard({
   );
 }
 
-export function ArticleCard({ item }: { item: ReadingItemPayload }) {
+export function ArticleCard({ item }: { item: KnowledgeItemPayload }) {
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
 
   return (
@@ -95,7 +95,7 @@ export function ArticleCard({ item }: { item: ReadingItemPayload }) {
           "flex h-full flex-col overflow-hidden border border-border bg-card transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg motion-reduce:transition-none motion-reduce:group-hover:translate-y-0",
           FOCUS_RING,
         )}
-        href={`/reading/${item.id}`}
+        href={`/knowledge/${item.id}`}
       >
         <div className="aspect-[16/10] overflow-hidden bg-muted">
           <CoverArt
@@ -130,7 +130,7 @@ export function ArticleCard({ item }: { item: ReadingItemPayload }) {
         title={item.title}
       />
 
-      <RemoveReadingItemDialog
+      <RemoveKnowledgeItemDialog
         item={item}
         onOpenChange={setConfirmingRemoval}
         open={confirmingRemoval}

@@ -363,12 +363,12 @@ export type SpreadsheetTabsResponse = {
   tabs: string[];
 };
 
-export type ReadingItemKind = "book" | "article";
+export type KnowledgeItemKind = "book" | "article";
 
-export type ReadingItemPayload = {
+export type KnowledgeItemPayload = {
   id: string;
   userId: string;
-  kind: ReadingItemKind;
+  kind: KnowledgeItemKind;
   title: string;
   author: string | null;
   source: string | null;
@@ -381,20 +381,20 @@ export type ReadingItemPayload = {
   updatedAt: string;
 };
 
-export type ReadingResponse = {
-  items: ReadingItemPayload[];
+export type KnowledgeResponse = {
+  items: KnowledgeItemPayload[];
 };
 
-export type ReadingItemResponse = {
-  item: ReadingItemPayload;
+export type KnowledgeItemResponse = {
+  item: KnowledgeItemPayload;
 };
 
-export type CreateReadingItemResponse = ReadingItemResponse & {
+export type CreateKnowledgeItemResponse = KnowledgeItemResponse & {
   /** The link was already saved; the existing entry came back instead. */
   duplicate: boolean;
 };
 
-export type CreateReadingItemBody = {
+export type CreateKnowledgeItemBody = {
   input: string;
   /** The catalogue work chosen in the picker; the server reads it back by key. */
   workKey?: string;
@@ -415,7 +415,7 @@ export type BookSearchResponse = {
   candidates: BookCandidatePayload[];
 };
 
-export type UpdateReadingItemBody = {
+export type UpdateKnowledgeItemBody = {
   title?: string;
   author?: string | null;
   imageUrl?: string | null;
