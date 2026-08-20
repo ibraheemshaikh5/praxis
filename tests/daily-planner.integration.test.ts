@@ -135,6 +135,72 @@ describeDatabase("daily planner database integration", () => {
     expect(otherUserPlanner).toEqual({ entries: [], inbox: [] });
   });
 
+  it("reorders entries the caller knows about even if the day gained or lost others", async () => {
+    const first = await service.createTask(USER_ONE, {
+      title: "First",
+      plannerDate: "2026-07-30",
+    });
+    const second = await service.createTask(USER_ONE, {
+      title: "Second",
+      plannerDate: "2026-07-30",
+    });
+
+    // A task created after the client fetched its list must not block that
+    // client from reordering the entries it already knows about.
+    const third = await service.createTask(USER_ONE, {
+      title: "Third",
+      plannerDate: "2026-07-30",
+    });
+
+    await service.reorderPlanner(USER_ONE, {
+      plannerDate: "2026-07-30",
+      orderedEntryIds: [second.entry!.id, first.entry!.id],
+    });
+    const planner = await service.listPlanner(USER_ONE, {
+      from: "2026-07-30",
+      to: "2026-07-30",
+      inbox: "false",
+    });
+    // The omitted entry keeps its own position rather than colliding with one
+    // handed to a reordered entry, so the requested order still holds.
+    expect(planner.entries.map(({ id }) => id)).toEqual([
+      second.entry!.id,
+      first.entry!.id,
+      third.entry!.id,
+    ]);
+
+    // Omitting an entry that sits between two reordered ones must not hand its
+    // position to either of them.
+    await service.reorderPlanner(USER_ONE, {
+      plannerDate: "2026-07-30",
+      orderedEntryIds: [third.entry!.id, second.entry!.id],
+    });
+    const afterPartial = await service.listPlanner(USER_ONE, {
+      from: "2026-07-30",
+      to: "2026-07-30",
+      inbox: "false",
+    });
+    const positions = afterPartial.entries.map(({ position }) => position);
+    expect(new Set(positions).size).toBe(positions.length);
+    expect(
+      afterPartial.entries.findIndex(({ id }) => id === third.entry!.id),
+    ).toBeLessThan(
+      afterPartial.entries.findIndex(({ id }) => id === second.entry!.id),
+    );
+
+    // An entry that is no longer active (closed elsewhere) still conflicts.
+    await service.scheduleTask(USER_ONE, third.task.id, {
+      plannerDate: null,
+      expectedVersion: third.task.version,
+    });
+    await expect(
+      service.reorderPlanner(USER_ONE, {
+        plannerDate: "2026-07-30",
+        orderedEntryIds: [first.entry!.id, third.entry!.id],
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   it("verifies, retries, recovers, and purges attachments through storage", async () => {
     const storage = new FakeAttachmentStorage();
     const { task } = await service.createTask(USER_ONE, {
