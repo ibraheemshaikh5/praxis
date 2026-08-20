@@ -20,6 +20,7 @@ import {
 import { signOut } from "@/lib/auth/actions";
 import type { KnowledgeItemPayload } from "@/lib/api/types";
 import { isHttpUrl } from "@/lib/knowledge/entry";
+import { parseYouTubeVideoId, youTubeEmbedUrl } from "@/lib/knowledge/youtube";
 import { cn } from "@/lib/utils";
 
 export function KnowledgeDetail({
@@ -37,6 +38,8 @@ export function KnowledgeDetail({
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
 
   const isBook = item.kind === "book";
+  const videoId =
+    item.kind === "video" ? parseYouTubeVideoId(item.url ?? "") : null;
 
   return (
     <AppShell onSignOut={signOut} title="Knowledge" userEmail={userEmail}>
@@ -64,18 +67,30 @@ export function KnowledgeDetail({
             <div
               className={cn(
                 "relative overflow-hidden bg-muted shadow-lg ring-1 ring-foreground/10",
-                isBook
-                  ? "aspect-[2/3] w-40 rounded-xl sm:w-48"
-                  : "aspect-[16/10] w-full rounded-2xl sm:w-80",
+                isBook && "aspect-[2/3] w-40 rounded-xl sm:w-48",
+                item.kind === "article" &&
+                  "aspect-[16/10] w-full rounded-2xl sm:w-80",
+                item.kind === "video" &&
+                  "aspect-video w-full rounded-2xl sm:w-[28rem]",
               )}
             >
-              <CoverArt
-                author={item.author}
-                className="object-cover"
-                imageUrl={item.imageUrl}
-                kind={item.kind}
-                title={item.title}
-              />
+              {videoId ? (
+                <iframe
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="size-full"
+                  src={youTubeEmbedUrl(videoId)}
+                  title={item.title}
+                />
+              ) : (
+                <CoverArt
+                  author={item.author}
+                  className="object-cover"
+                  imageUrl={item.imageUrl}
+                  kind={item.kind}
+                  title={item.title}
+                />
+              )}
               {isBook ? (
                 <span
                   aria-hidden
@@ -130,7 +145,10 @@ export function KnowledgeDetail({
                   pending={updateItem.isPending}
                 />
               ) : (
-                <SourceLink href={item.url} label="Open article" />
+                <SourceLink
+                  href={item.url}
+                  label={item.kind === "video" ? "Open video" : "Open article"}
+                />
               )}
             </div>
           </div>

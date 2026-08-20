@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Play } from "lucide-react";
 
 import { CoverArt } from "@/components/knowledge/cover-art";
 import { CoverPicker } from "@/components/knowledge/cover-picker";
@@ -85,8 +86,10 @@ export function BookCard({
   );
 }
 
-export function ArticleCard({ item }: { item: KnowledgeItemPayload }) {
+/** Articles and videos are both a link with a lead image behind it. */
+export function LinkCard({ item }: { item: KnowledgeItemPayload }) {
   const [confirmingRemoval, setConfirmingRemoval] = React.useState(false);
+  const isVideo = item.kind === "video";
 
   return (
     <article className="group relative">
@@ -97,13 +100,28 @@ export function ArticleCard({ item }: { item: KnowledgeItemPayload }) {
         )}
         href={`/knowledge/${item.id}`}
       >
-        <div className="aspect-[16/10] overflow-hidden bg-muted">
+        <div
+          className={cn(
+            "relative overflow-hidden bg-muted",
+            isVideo ? "aspect-video" : "aspect-[16/10]",
+          )}
+        >
           <CoverArt
             className="object-cover transition duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
             imageUrl={item.imageUrl}
-            kind="article"
+            kind={item.kind}
             title={item.title}
           />
+          {isVideo ? (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+              <span className="flex size-11 items-center justify-center rounded-full bg-black/55 text-white">
+                <Play className="size-5 translate-x-px fill-current" />
+              </span>
+            </span>
+          ) : null}
         </div>
 
         <div className="flex flex-1 flex-col gap-1.5 p-4">

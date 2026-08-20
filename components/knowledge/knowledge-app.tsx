@@ -7,7 +7,7 @@ import {
   BookPicker,
   type BookChoice,
 } from "@/components/knowledge/book-picker";
-import { ArticleCard, BookCard } from "@/components/knowledge/knowledge-card";
+import { BookCard, LinkCard } from "@/components/knowledge/knowledge-card";
 import { AppShell } from "@/components/shell/app-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,10 +32,11 @@ export function KnowledgeApp({ userEmail }: { userEmail: string | null }) {
   const items = React.useMemo(() => data?.items ?? [], [data?.items]);
   const books = items.filter((item) => item.kind === "book");
   const articles = items.filter((item) => item.kind === "article");
+  const videos = items.filter((item) => item.kind === "video");
 
   // A link says what it is; only a title has more than one book behind it.
   function submitEntry(input: string) {
-    if (parseEntry(input).kind === "article") {
+    if (parseEntry(input).kind !== "book") {
       createItem.mutate({ input }, { onSuccess: () => setEntry("") });
       return;
     }
@@ -119,13 +120,26 @@ export function KnowledgeApp({ userEmail }: { userEmail: string | null }) {
         ) : null}
 
         {articles.length > 0 ? (
-          <section className="pb-4">
+          <section className="mb-12">
             <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">
               Articles
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {articles.map((item) => (
-                <ArticleCard item={item} key={item.id} />
+                <LinkCard item={item} key={item.id} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {videos.length > 0 ? (
+          <section className="pb-4">
+            <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+              Videos
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {videos.map((item) => (
+                <LinkCard item={item} key={item.id} />
               ))}
             </div>
           </section>

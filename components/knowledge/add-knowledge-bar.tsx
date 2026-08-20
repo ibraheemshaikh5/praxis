@@ -31,12 +31,12 @@ export function AddKnowledgeBar({
         className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
       />
       <Input
-        aria-label="Article link or book title"
+        aria-label="Link or book title"
         autoComplete="off"
         className="h-12 rounded-4xl border-border bg-card pr-14 pl-11 text-base shadow-sm"
         name="entry"
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Paste an article link or type a book title"
+        placeholder="Paste a link or type a book title"
         spellCheck={false}
         value={value}
       />

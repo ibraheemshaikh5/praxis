@@ -363,7 +363,7 @@ export type SpreadsheetTabsResponse = {
   tabs: string[];
 };
 
-export type KnowledgeItemKind = "book" | "article";
+export type KnowledgeItemKind = "book" | "article" | "video";
 
 export type KnowledgeItemPayload = {
   id: string;

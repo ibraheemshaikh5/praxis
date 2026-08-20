@@ -33,6 +33,7 @@ const timestamps = {
 export const knowledgeItemKind = pgEnum("knowledge_item_kind", [
   "book",
   "article",
+  "video",
 ]);
 
 export const knowledgeItems = pgTable(
@@ -87,10 +88,11 @@ export const knowledgeItems = pgTable(
       "knowledge_items_image_url_check",
       sql`${table.imageUrl} is null or ((${table.imageUrl} like 'http://%' or ${table.imageUrl} like 'https://%') and length(${table.imageUrl}) <= 2000)`,
     ),
-    // An article is the link; without it there is nothing to reopen.
+    // Anything that is not a book is its link; without it there is nothing to
+    // reopen.
     check(
-      "knowledge_items_article_url_check",
-      sql`${table.kind} <> 'article' or ${table.url} is not null`,
+      "knowledge_items_link_url_check",
+      sql`${table.kind} = 'book' or ${table.url} is not null`,
     ),
     check(
       "knowledge_items_cover_options_check",
