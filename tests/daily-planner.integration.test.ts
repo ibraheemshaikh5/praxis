@@ -135,6 +135,53 @@ describeDatabase("daily planner database integration", () => {
     expect(otherUserPlanner).toEqual({ entries: [], inbox: [] });
   });
 
+  it("reorders entries the caller knows about even if the day gained or lost others", async () => {
+    const first = await service.createTask(USER_ONE, {
+      title: "First",
+      plannerDate: "2026-07-30",
+    });
+    const second = await service.createTask(USER_ONE, {
+      title: "Second",
+      plannerDate: "2026-07-30",
+    });
+
+    // A task created after the client fetched its list must not block that
+    // client from reordering the entries it already knows about.
+    const third = await service.createTask(USER_ONE, {
+      title: "Third",
+      plannerDate: "2026-07-30",
+    });
+
+    await service.reorderPlanner(USER_ONE, {
+      plannerDate: "2026-07-30",
+      orderedEntryIds: [second.entry!.id, first.entry!.id],
+    });
+    const planner = await service.listPlanner(USER_ONE, {
+      from: "2026-07-30",
+      to: "2026-07-30",
+      inbox: "false",
+    });
+    expect(planner.entries.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([
+        second.entry!.id,
+        first.entry!.id,
+        third.entry!.id,
+      ]),
+    );
+
+    // An entry that is no longer active (closed elsewhere) still conflicts.
+    await service.scheduleTask(USER_ONE, third.task.id, {
+      plannerDate: null,
+      expectedVersion: third.task.version,
+    });
+    await expect(
+      service.reorderPlanner(USER_ONE, {
+        plannerDate: "2026-07-30",
+        orderedEntryIds: [first.entry!.id, third.entry!.id],
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   it("verifies, retries, recovers, and purges attachments through storage", async () => {
     const storage = new FakeAttachmentStorage();
     const { task } = await service.createTask(USER_ONE, {

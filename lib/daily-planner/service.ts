@@ -389,12 +389,9 @@ export class DailyPlannerService {
         )
         .for("update");
 
-      const actual = activeEntries.map(({ id }) => id).sort();
-      const requested = [...input.orderedEntryIds].sort();
-      if (
-        actual.length !== requested.length ||
-        actual.some((id, index) => id !== requested[index])
-      ) {
+      const activeIds = new Set(activeEntries.map(({ id }) => id));
+      const stale = input.orderedEntryIds.some((id) => !activeIds.has(id));
+      if (stale) {
         throw new ConflictError(
           "The planner day changed; refresh before reordering",
         );
