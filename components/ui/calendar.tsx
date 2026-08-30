@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   DayPicker,
   getDefaultClassNames,
+  type CustomComponents,
   type DayButton,
   type Locale,
 } from "react-day-picker"
@@ -11,6 +12,41 @@ import {
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
+
+const CalendarRoot: CustomComponents["Root"] = ({
+  className,
+  rootRef,
+  ...props
+}) => (
+  <div data-slot="calendar" ref={rootRef} className={cn(className)} {...props} />
+)
+
+const CalendarChevron: CustomComponents["Chevron"] = ({
+  className,
+  orientation,
+  ...props
+}) => {
+  if (orientation === "left") {
+    return <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+  }
+
+  if (orientation === "right") {
+    return <ChevronRightIcon className={cn("size-4", className)} {...props} />
+  }
+
+  return <ChevronDownIcon className={cn("size-4", className)} {...props} />
+}
+
+const CalendarWeekNumber: CustomComponents["WeekNumber"] = ({
+  children,
+  ...props
+}) => (
+  <td {...props}>
+    <div className="flex size-(--cell-size) items-center justify-center text-center">
+      {children}
+    </div>
+  </td>
+)
 
 function Calendar({
   className,
@@ -26,6 +62,24 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+
+  // react-day-picker unmounts and remounts every DayButton whenever the
+  // `components` prop changes identity, which breaks the browser's native
+  // click synthesis for a mousedown/mouseup pair that spans a re-render (the
+  // button focusing on mousedown is enough to trigger one). Keep the object
+  // itself stable across renders instead of recreating it inline each time.
+  const mergedComponents = React.useMemo(
+    () => ({
+      Root: CalendarRoot,
+      Chevron: CalendarChevron,
+      DayButton: (dayButtonProps: React.ComponentProps<typeof DayButton>) => (
+        <CalendarDayButton locale={locale} {...dayButtonProps} />
+      ),
+      WeekNumber: CalendarWeekNumber,
+      ...components,
+    }),
+    [locale, components],
+  )
 
   return (
     <DayPicker
@@ -133,48 +187,7 @@ function Calendar({
         hidden: cn("invisible", defaultClassNames.hidden),
         ...classNames,
       }}
-      components={{
-        Root: ({ className, rootRef, ...props }) => {
-          return (
-            <div
-              data-slot="calendar"
-              ref={rootRef}
-              className={cn(className)}
-              {...props}
-            />
-          )
-        },
-        Chevron: ({ className, orientation, ...props }) => {
-          if (orientation === "left") {
-            return (
-              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
-            )
-          }
-
-          if (orientation === "right") {
-            return (
-              <ChevronRightIcon className={cn("size-4", className)} {...props} />
-            )
-          }
-
-          return (
-            <ChevronDownIcon className={cn("size-4", className)} {...props} />
-          )
-        },
-        DayButton: ({ ...props }) => (
-          <CalendarDayButton locale={locale} {...props} />
-        ),
-        WeekNumber: ({ children, ...props }) => {
-          return (
-            <td {...props}>
-              <div className="flex size-(--cell-size) items-center justify-center text-center">
-                {children}
-              </div>
-            </td>
-          )
-        },
-        ...components,
-      }}
+      components={mergedComponents}
       {...props}
     />
   )
