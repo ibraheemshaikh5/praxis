@@ -328,7 +328,6 @@ function PlannerDayFeed({
       className={cn(
         "relative min-h-0 flex-1 overflow-y-auto overscroll-contain",
         "-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10",
-        mode === "list" && "snap-y snap-mandatory",
       )}
       ref={scrollRef}
     >

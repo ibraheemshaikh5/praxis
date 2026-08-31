@@ -243,8 +243,7 @@ export function DaySection({
       aria-labelledby={headingId}
       className={cn(
         "flex flex-col border-t border-border/60 py-5",
-        mode === "list" &&
-          "min-h-full snap-start snap-always first:border-t-0",
+        mode === "list" && "min-h-full first:border-t-0",
         mode === "calendar" && "gap-0 py-3 first:border-t-0 first:pt-2",
       )}
       data-day={dateKey}
