@@ -920,9 +920,8 @@ type MetricStatsRow = {
 /**
  * Counts matching tasks per metric for the anchor period and the periods
  * before it. Period boundaries are calendar maths in the profile time zone;
- * `date_trunc('week', ...)` makes weeks start on Monday. A task is attributed
- * to its active planner entry's date, falling back to the local calendar date
- * of `completed_at`.
+ * weeks start on Sunday. A task is attributed to its active planner entry's
+ * date, falling back to the local calendar date of `completed_at`.
  */
 function metricStatsQuery(userId: string, timeZone: string, anchor: string) {
   return sql`
@@ -939,7 +938,7 @@ function metricStatsQuery(userId: string, timeZone: string, anchor: string) {
         m.keywords,
         case m.period
           when 'day' then ${anchor}::date
-          when 'week' then date_trunc('week', ${anchor}::date)::date
+          when 'week' then ${anchor}::date - extract(dow from ${anchor}::date)::int
           else date_trunc('month', ${anchor}::date)::date
         end as current_start
       from metric_rows m
