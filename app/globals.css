@@ -146,9 +146,4 @@
       transparent 55%
     );
   }
-
-  /* Suspend scroll-snap for one frame while restoring scroll after a prepend. */
-  [data-snap="off"] {
-    scroll-snap-type: none;
-  }
 }
