@@ -8,8 +8,8 @@ import { describeDatabase, useTestDatabase } from "./support/database";
 const USER_ONE = "00000000-0000-4000-8000-000000000011";
 const USER_TWO = "00000000-0000-4000-8000-000000000012";
 const ANCHOR = "2026-07-30";
-const WEEK_START = "2026-07-27";
-const WEEK_END = "2026-08-02";
+const WEEK_START = "2026-07-26";
+const WEEK_END = "2026-08-01";
 
 describeDatabase("goal metrics database integration", () => {
   const { client, db } = useTestDatabase([USER_ONE, USER_TWO]);
@@ -129,39 +129,40 @@ describeDatabase("goal metrics database integration", () => {
       count: 1,
     });
     expect(listed.history.at(-2)).toEqual({
-      periodStart: "2026-07-20",
-      periodEnd: "2026-07-26",
+      periodStart: "2026-07-19",
+      periodEnd: "2026-07-25",
       count: 1,
     });
   });
 
   it("attributes unscheduled tasks across the Eastern DST transition", async () => {
     await createGymMetric();
-    // Eastern clocks spring forward at 2026-03-08T07:00Z. Both instants fall on
-    // 2026-03-09 in UTC, and both fall on 2026-03-08 at a fixed -05:00 offset,
-    // so only the real zone splits them across the week boundary.
-    const previousWeek = await completeTask("Gym"); // 23:30 EDT, Sunday the 8th
-    const currentWeek = await completeTask("Gym again"); // 00:30 EDT, Monday the 9th
+    // Eastern clocks spring forward at 2026-03-08T07:00Z, so by the following
+    // Sunday the zone is on EDT (-04:00). Both instants fall on 2026-03-15 in
+    // UTC, and both fall on 2026-03-14 at a fixed -05:00 offset, so only the
+    // real zone splits them across the (Sunday-starting) week boundary.
+    const previousWeek = await completeTask("Gym"); // 23:30 EDT, Saturday the 14th
+    const currentWeek = await completeTask("Gym again"); // 00:30 EDT, Sunday the 15th
     await client`
-      update tasks set completed_at = '2026-03-09T03:30:00Z'
+      update tasks set completed_at = '2026-03-15T03:30:00Z'
       where id = ${previousWeek.id}
     `;
     await client`
-      update tasks set completed_at = '2026-03-09T04:30:00Z'
+      update tasks set completed_at = '2026-03-15T04:30:00Z'
       where id = ${currentWeek.id}
     `;
 
-    const listed = await currentMetric("2026-03-09");
-    expect(listed.periodStart).toBe("2026-03-09");
-    expect(listed.periodEnd).toBe("2026-03-15");
+    const listed = await currentMetric("2026-03-15");
+    expect(listed.periodStart).toBe("2026-03-15");
+    expect(listed.periodEnd).toBe("2026-03-21");
     expect(listed.currentCount).toBe(1);
     expect(listed.history.at(-2)).toEqual({
-      periodStart: "2026-03-02",
-      periodEnd: "2026-03-08",
+      periodStart: "2026-03-08",
+      periodEnd: "2026-03-14",
       count: 1,
     });
     expect(listed.days.filter(({ hit }) => hit)).toEqual([
-      { date: "2026-03-09", hit: true },
+      { date: "2026-03-15", hit: true },
     ]);
   });
 
