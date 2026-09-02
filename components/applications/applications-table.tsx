@@ -1,10 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 
 import { CompanyLogo } from "@/components/applications/company-logo";
 import { StatusBadge } from "@/components/applications/status-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -212,12 +224,16 @@ function EditableRow({
 
 function SavedRow({
   application,
+  deleting,
+  onDelete,
   onEdit,
   onRetrySync,
   onStatusChange,
   syncing,
 }: {
   application: ApplicationPayload;
+  deleting: boolean;
+  onDelete: () => void;
   onEdit: () => void;
   onRetrySync: () => void;
   onStatusChange: (status: ApplicationStatus) => void;
@@ -274,10 +290,47 @@ function SavedRow({
         {formatAppliedOn(application.appliedOn)}
       </td>
       <td
-        className={cn(CELL, "truncate text-xs text-muted-foreground")}
+        className={cn(CELL, "text-xs text-muted-foreground")}
         title={application.notes ?? undefined}
       >
-        {application.notes ?? ""}
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate">
+            {application.notes ?? ""}
+          </span>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  aria-label={`Delete ${application.company}`}
+                  className="shrink-0 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                  disabled={deleting}
+                  onClick={(event) => event.stopPropagation()}
+                  size="icon-xs"
+                  variant="ghost"
+                />
+              }
+            >
+              <Trash2 />
+            </AlertDialogTrigger>
+            <AlertDialogContent onClick={(event) => event.stopPropagation()}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete #{application.applicationNumber} —{" "}
+                  {application.company}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Also cleared from the spreadsheet row.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </td>
     </tr>
   );
@@ -286,12 +339,14 @@ function SavedRow({
 export function ApplicationsTable({
   applications,
   creating,
+  deletingId,
   draft,
   editingId,
   nextNumber,
   onCancelEdit,
   onCommitEdit,
   onCommitNew,
+  onDelete,
   onDraftChange,
   onNewDraftChange,
   onRetrySync,
@@ -302,12 +357,14 @@ export function ApplicationsTable({
 }: {
   applications: ApplicationPayload[];
   creating: boolean;
+  deletingId: string | null;
   draft: RowDraft | null;
   editingId: string | null;
   nextNumber: number;
   onCancelEdit: () => void;
   onCommitEdit: () => void;
   onCommitNew: () => void;
+  onDelete: (application: ApplicationPayload) => void;
   onDraftChange: (draft: RowDraft) => void;
   onNewDraftChange: (draft: RowDraft) => void;
   onRetrySync: (applicationId: string) => void;
@@ -351,7 +408,9 @@ export function ApplicationsTable({
           ) : (
             <SavedRow
               application={application}
+              deleting={deletingId === application.id}
               key={application.id}
+              onDelete={() => onDelete(application)}
               onEdit={() => onStartEdit(application)}
               onRetrySync={() => onRetrySync(application.id)}
               onStatusChange={(status) => onStatusChange(application, status)}

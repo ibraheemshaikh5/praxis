@@ -15,6 +15,7 @@ import {
   useApplications,
   useAutoImportApplications,
   useCreateApplication,
+  useDeleteApplication,
   useDisconnectGoogle,
   useGoogleConnection,
   useImportApplications,
@@ -95,6 +96,7 @@ export function ApplicationsApp({
 
   const createApplication = useCreateApplication();
   const updateApplication = useUpdateApplication(cycle);
+  const deleteApplication = useDeleteApplication(cycle);
   const syncApplication = useSyncApplication();
   const importApplications = useImportApplications();
   const disconnectGoogle = useDisconnectGoogle();
@@ -196,6 +198,11 @@ export function ApplicationsApp({
     );
   }
 
+  function handleDelete(application: ApplicationPayload) {
+    if (editingId === application.id) cancelEdit();
+    deleteApplication.mutate(application.id);
+  }
+
   function handleStatusChange(
     application: ApplicationPayload,
     status: ApplicationStatus,
@@ -253,6 +260,11 @@ export function ApplicationsApp({
           <ApplicationsTable
             applications={applications}
             creating={createApplication.isPending}
+            deletingId={
+              deleteApplication.isPending
+                ? (deleteApplication.variables ?? null)
+                : null
+            }
             draft={draft}
             editingId={editingId}
             newDraft={newDraft}
@@ -260,6 +272,7 @@ export function ApplicationsApp({
             onCancelEdit={cancelEdit}
             onCommitEdit={commitEdit}
             onCommitNew={commitNew}
+            onDelete={handleDelete}
             onDraftChange={setDraft}
             onNewDraftChange={setNewDraft}
             onRetrySync={(applicationId) =>

@@ -11,6 +11,7 @@ import type { SheetSyncOutcome } from "./service";
 import {
   SheetsClient,
   cellValues,
+  clearedCells,
   findUnnumberedRows,
   findWriteRowNumber,
   highestNumber,
@@ -166,6 +167,41 @@ export async function pushApplicationToSheet(
   } catch (error) {
     return { status: "failed", error: describeSyncFailure(error) };
   }
+}
+
+/**
+ * Clears a deleted application's row in its cycle tab. Unlike the push above,
+ * this runs *before* Postgres deletes the row, and a failure is raised rather
+ * than swallowed: a delete that quietly failed to clear the sheet would leave
+ * the row importable, resurrecting an application the owner just removed.
+ *
+ * Blanking the row rather than removing it keeps every other row's position
+ * intact and leaves the row eligible for `findWriteRowNumber` to reuse, the
+ * same as any other blank row in a hand-kept sheet.
+ *
+ * A no-op, including when no Google account is connected: there is nothing in
+ * the sheet that could resurrect the application, so the caller is free to
+ * delete the Postgres row either way.
+ */
+export async function clearApplicationFromSheet(
+  userId: string,
+  application: Pick<Application, "cycle" | "applicationNumber">,
+): Promise<void> {
+  const context = await resolveSheetsContext(userId);
+  if (!context) return;
+
+  const tab = application.cycle;
+  const rows = await context.client.readTab(tab);
+  const headerMap = resolveHeaderMap(rows[0] ?? []);
+
+  const rowNumber = findRowNumber(
+    rows,
+    headerMap.number,
+    application.applicationNumber,
+  );
+  if (rowNumber === null) return;
+
+  await context.client.updateCells(tab, rowNumber, clearedCells(headerMap));
 }
 
 export async function importCycleFromSheet(userId: string, cycle: string) {
