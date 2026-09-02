@@ -1,26 +1,60 @@
 import * as React from "react";
 
-// The bull head: favicon, sidebar tile, and other small surfaces.
-export function PraxisMark(props: React.SVGProps<SVGSVGElement>) {
+// Charging bull drawn as tapered calligraphic strokes on a 100-unit grid.
+const BULL_STROKES = [
+  // back: crest over hump to rump
+  "M27 26 C 34 12 44 8 53 12 C 64 17 73 27 79 38 C 71 27 62 19 52 16 C 44 13 35 17 30 29 Z",
+  // face
+  "M27 26 C 21 34 17 45 16 57 C 20 46 24 36 31 29 Z",
+  // muzzle
+  "M16 57 C 15 62 16 66 19 69 C 17 65 17 61 18 56 Z",
+  // jaw
+  "M21 71 C 27 76 35 79 44 79 C 35 74 28 72 23 68 Z",
+  // horn
+  "M27 29 C 20 28 14 24 12 17 C 13 12 16 9 21 8 C 17 11 15 14 16 18 C 18 23 23 27 29 31 Z",
+  // ear
+  "M19 34 C 15 38 13 43 14 48 C 16 43 18 39 21 36 Z",
+  // tail
+  "M77 39 C 83 33 86 26 86 18 C 87 12 89 6 94 2 C 86 7 83 13 84 20 C 84 28 81 34 76 41 Z",
+  // front legs and hooves
+  "M32 78 C 29 83 26 87 22 91 C 27 85 29 81 29 77 Z",
+  "M38 79 C 37 84 36 88 35 92 C 35 87 35 82 36 78 Z",
+  "M21 91 L 29 91 L 27.5 95.5 L 19.5 95.5 Z",
+  "M34 92 L 41 92 L 40 96 L 33 96 Z",
+  // belly
+  "M44 80 C 51 78 58 74 63 68 C 58 77 51 81 44 82 Z",
+  // hind leg and hoof
+  "M75 60 C 75 68 75 76 77 85 C 72 76 71 68 71 60 Z",
+  "M64 68 C 64 73 66 79 68 84 C 64 79 62 73 62 69 Z",
+  "M67 85 L 76.5 85 L 76.5 90.5 L 65.5 90.5 Z",
+];
+
+function Bull({
+  weight,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { weight?: number }) {
   return (
-    <svg aria-hidden viewBox="0 0 64 64" {...props}>
-      <path
-        d="M10 44 L14 30 L17 24 L7 16 Q2 9 2 1 Q6 11 13 17 L19 19 L24 20 L27 18 L23 8 Q23 3 25 -1 Q27 8 31 12 L35 15 C42 18 47 24 49 31 C51 38 49 45 44 49 C40 52 35 52 32 50 L21 57 L13 55 L13 46 Z"
-        fill="currentColor"
-      />
+    <svg aria-hidden viewBox="0 0 100 100" {...props}>
+      {BULL_STROKES.map((d) => (
+        <path
+          d={d}
+          fill="currentColor"
+          key={d}
+          stroke={weight ? "currentColor" : undefined}
+          strokeLinejoin={weight ? "round" : undefined}
+          strokeWidth={weight}
+        />
+      ))}
     </svg>
   );
 }
 
-// The full charging figure: login and other large surfaces.
+// Display weight: login and other large surfaces (40px and up).
 export function PraxisBull(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg aria-hidden viewBox="0 0 100 100" {...props}>
-      <path d="M77 15 L63 3" fill="none" stroke="currentColor" strokeWidth="3" />
-      <path
-        d="M10 62 L13 50 L16 43 L7 35 Q1 26 1 15 Q5 27 12 36 L18 38 L21 35 L23 33 L15 19 Q13 10 14 3 Q20 15 25 24 L27 28 C34 22 40 14 46 10 C50 12 53 14 56 16 Q66 10 72 13 Q82 15 84 22 L82 32 Q90 42 94 56 L95 62 L87 65 L79 48 L74 46 C66 50 58 52 48 56 L50 70 L42 70 L42 60 L38 62 L34 68 L30 80 L21 80 L25 66 L28 62 L18 67 L8 73 L2 68 L5 62 Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <Bull weight={1} {...props} />;
+}
+
+// Bold cut of the same strokes: sidebar tile and other small surfaces.
+export function PraxisMark(props: React.SVGProps<SVGSVGElement>) {
+  return <Bull weight={2.2} {...props} />;
 }
