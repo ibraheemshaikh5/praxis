@@ -11,6 +11,8 @@ All routes require a Supabase cookie session; the owner comes from the session.
   `notes`, and `cycle`.
 - `PATCH /api/applications/:applicationId` edits any subset of those fields and
   requires `expectedVersion`.
+- `DELETE /api/applications/:applicationId` removes the row and clears its
+  cells from the spreadsheet.
 - `POST /api/applications/:applicationId/sync` retries the spreadsheet write.
 - `POST /api/applications/import` reads the cycle's tab and upserts every row.
 - `GET /api/google/sheets` lists the spreadsheet's tabs for the cycle selector.
@@ -50,6 +52,13 @@ runs in the same request and its result is recorded on the row:
 
 A failed push never fails the request and never rolls back the save. Recording a
 sync result does not increment `version`, so it cannot invalidate an open editor.
+
+A delete removes the Postgres row first, then blanks the row's cells in the
+sheet rather than removing the sheet row — that keeps every other row's
+position intact and leaves the row eligible for reuse, same as any other blank
+row. The clear is best effort: a failure is reported on the delete response's
+`application.sheetSyncStatus` for the client to warn on, but never brings the
+Postgres delete back.
 
 Sync is one-way, app to sheet, apart from import. Columns are matched by reading
 the tab's header row rather than by position, so reordering or adding columns in

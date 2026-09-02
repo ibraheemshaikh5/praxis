@@ -119,6 +119,21 @@ export class ApplicationsService {
     return updated;
   }
 
+  async deleteApplication(userId: string, applicationId: string) {
+    const [deleted] = await this.db
+      .delete(applications)
+      .where(
+        and(
+          eq(applications.id, applicationId),
+          eq(applications.userId, userId),
+        ),
+      )
+      .returning();
+
+    if (!deleted) throw new NotFoundError();
+    return deleted;
+  }
+
   async markSheetSync(
     userId: string,
     applicationId: string,

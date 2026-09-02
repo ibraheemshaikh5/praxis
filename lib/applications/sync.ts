@@ -11,6 +11,7 @@ import type { SheetSyncOutcome } from "./service";
 import {
   SheetsClient,
   cellValues,
+  clearedCells,
   findUnnumberedRows,
   findWriteRowNumber,
   highestNumber,
@@ -162,6 +163,44 @@ export async function pushApplicationToSheet(
       cells,
     );
 
+    return { status: "synced" };
+  } catch (error) {
+    return { status: "failed", error: describeSyncFailure(error) };
+  }
+}
+
+/**
+ * Best-effort clear of a deleted application's row. Postgres has already
+ * deleted the row by the time this runs, so a failure is reported to the
+ * caller rather than raised — the row stays in Postgres, deleted, either way.
+ *
+ * Blanking the row rather than removing it keeps every other row's position
+ * intact and leaves the row eligible for `findWriteRowNumber` to reuse, the
+ * same as any other blank row in a hand-kept sheet.
+ *
+ * Returns null when no Google account is connected, and `synced` when the
+ * application was never written to the tab in the first place.
+ */
+export async function clearApplicationFromSheet(
+  userId: string,
+  application: Pick<Application, "cycle" | "applicationNumber">,
+): Promise<SheetSyncOutcome | null> {
+  try {
+    const context = await resolveSheetsContext(userId);
+    if (!context) return null;
+
+    const tab = application.cycle;
+    const rows = await context.client.readTab(tab);
+    const headerMap = resolveHeaderMap(rows[0] ?? []);
+
+    const rowNumber = findRowNumber(
+      rows,
+      headerMap.number,
+      application.applicationNumber,
+    );
+    if (rowNumber === null) return { status: "synced" };
+
+    await context.client.updateCells(tab, rowNumber, clearedCells(headerMap));
     return { status: "synced" };
   } catch (error) {
     return { status: "failed", error: describeSyncFailure(error) };

@@ -9,6 +9,7 @@ import {
 } from "@/lib/applications/contracts";
 import {
   cellValues,
+  clearedCells,
   columnLetter,
   findUnnumberedRows,
   findWriteRowNumber,
@@ -208,6 +209,26 @@ describe("row building", () => {
     expect(columnLetter(26)).toBe("AA");
     expect(columnLetter(27)).toBe("AB");
     expect(columnLetter(51)).toBe("AZ");
+  });
+
+  it("blanks every mapped column when clearing a deleted row", () => {
+    expect(clearedCells(headerMap)).toEqual([
+      [0, ""],
+      [1, ""],
+      [2, ""],
+      [3, ""],
+      [4, ""],
+      [5, ""],
+    ]);
+  });
+
+  it("skips columns the tracker never found when clearing", () => {
+    const narrow = resolveHeaderMap(["#", "Company", "Title"]);
+    expect(clearedCells(narrow)).toEqual([
+      [0, ""],
+      [1, ""],
+      [2, ""],
+    ]);
   });
 });
 

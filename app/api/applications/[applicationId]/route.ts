@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { updateApplicationSchema } from "@/lib/applications/contracts";
 import { getApplicationsService } from "@/lib/applications/runtime";
-import { pushApplicationToSheet } from "@/lib/applications/sync";
+import {
+  clearApplicationFromSheet,
+  pushApplicationToSheet,
+} from "@/lib/applications/sync";
 import {
   parseJson,
   resolveApplicationId,
@@ -30,6 +33,30 @@ export async function PATCH(
     const application = outcome
       ? await service.markSheetSync(userId, applicationId, outcome)
       : updated;
+
+    return NextResponse.json({ application });
+  } catch (error) {
+    return routeError(error);
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: ApplicationRouteContext,
+) {
+  try {
+    const userId = await requireAuthenticatedUserId();
+    const applicationId = await resolveApplicationId(context);
+    const service = getApplicationsService();
+
+    const deleted = await service.deleteApplication(userId, applicationId);
+    const outcome = await clearApplicationFromSheet(userId, deleted);
+
+    const application = {
+      ...deleted,
+      sheetSyncStatus: outcome?.status ?? deleted.sheetSyncStatus,
+      sheetSyncError: outcome?.status === "failed" ? (outcome.error ?? null) : null,
+    };
 
     return NextResponse.json({ application });
   } catch (error) {
