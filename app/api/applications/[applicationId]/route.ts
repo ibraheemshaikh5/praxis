@@ -49,14 +49,12 @@ export async function DELETE(
     const applicationId = await resolveApplicationId(context);
     const service = getApplicationsService();
 
-    const deleted = await service.deleteApplication(userId, applicationId);
-    const outcome = await clearApplicationFromSheet(userId, deleted);
-
-    const application = {
-      ...deleted,
-      sheetSyncStatus: outcome?.status ?? deleted.sheetSyncStatus,
-      sheetSyncError: outcome?.status === "failed" ? (outcome.error ?? null) : null,
-    };
+    // Clear the sheet row first: a delete that removed the Postgres row but
+    // left the sheet row behind would resurrect the application on the next
+    // import.
+    const existing = await service.getApplication(userId, applicationId);
+    await clearApplicationFromSheet(userId, existing);
+    const application = await service.deleteApplication(userId, applicationId);
 
     return NextResponse.json({ application });
   } catch (error) {

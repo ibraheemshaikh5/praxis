@@ -198,16 +198,7 @@ export function useDeleteApplication(cycle: string) {
       if (context?.previous) client.setQueryData(queryKey, context.previous);
       reportError(error, "Could not delete that application.");
     },
-    onSuccess: (result) => {
-      if (result.application.sheetSyncStatus === "failed") {
-        toast.warning(
-          result.application.sheetSyncError ??
-            "Deleted here, but the spreadsheet row could not be cleared.",
-        );
-        return;
-      }
-      toast.success("Application deleted.");
-    },
+    onSuccess: () => toast.success("Application deleted."),
     onSettled: () => invalidateApplications(client),
   });
 }
