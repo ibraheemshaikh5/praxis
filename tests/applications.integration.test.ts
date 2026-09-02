@@ -103,25 +103,6 @@ describeDatabase("internship applications database integration", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it("deletes an application and hides other owners' rows from deletion", async () => {
-    const application = await log(USER_ONE, "Ramp");
-
-    await expect(
-      service.deleteApplication(USER_TWO, application.id),
-    ).rejects.toBeInstanceOf(NotFoundError);
-
-    const deleted = await service.deleteApplication(USER_ONE, application.id);
-    expect(deleted.id).toBe(application.id);
-
-    await expect(
-      service.getApplication(USER_ONE, application.id),
-    ).rejects.toBeInstanceOf(NotFoundError);
-
-    await expect(
-      service.deleteApplication(USER_ONE, application.id),
-    ).rejects.toBeInstanceOf(NotFoundError);
-  });
-
   it("records a sync result without invalidating an open editor", async () => {
     const application = await log(USER_ONE, "Ramp");
 

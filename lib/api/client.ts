@@ -329,13 +329,6 @@ export function updateApplication(
   );
 }
 
-export function deleteApplication(applicationId: string) {
-  return request<ApplicationMutationResponse>(
-    `/api/applications/${applicationId}`,
-    { method: "DELETE" },
-  );
-}
-
 export function syncApplication(applicationId: string) {
   return request<ApplicationMutationResponse>(
     `/api/applications/${applicationId}/sync`,

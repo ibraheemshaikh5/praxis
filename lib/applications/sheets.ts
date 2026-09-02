@@ -121,14 +121,6 @@ export function sheetStatusLabel(
   return vocabulary?.get(status) ?? formatStatusLabel(status);
 }
 
-/** Every mapped column, blanked — how a deleted application's row is cleared. */
-export function clearedCells(headerMap: SheetHeaderMap): Array<[number, string]> {
-  return (Object.keys(headerMap) as SheetField[])
-    .map((field) => headerMap[field])
-    .filter((index): index is number => index !== null)
-    .map((index) => [index, ""]);
-}
-
 /** The subset of cells a given update touches, keyed by column index. */
 export function cellValues(
   headerMap: SheetHeaderMap,

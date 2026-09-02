@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import {
   ApiError,
   createApplication,
-  deleteApplication,
   disconnectGoogle,
   fetchApplications,
   fetchGoogleConnection,
@@ -167,38 +166,6 @@ export function useUpdateApplication(cycle: string) {
         );
       }
     },
-    onSettled: () => invalidateApplications(client),
-  });
-}
-
-export function useDeleteApplication(cycle: string) {
-  const client = useQueryClient();
-  const queryKey = applicationsKeys.list(cycle);
-
-  return useMutation({
-    mutationFn: (applicationId: string) => deleteApplication(applicationId),
-    // The row leaves the table immediately and rolls back if the delete is
-    // rejected, the same optimism the status dropdown uses.
-    onMutate: async (applicationId) => {
-      await client.cancelQueries({ queryKey });
-      const previous = client.getQueryData<ApplicationsResponse>(queryKey);
-
-      if (previous) {
-        client.setQueryData<ApplicationsResponse>(queryKey, {
-          ...previous,
-          applications: previous.applications.filter(
-            (application) => application.id !== applicationId,
-          ),
-        });
-      }
-
-      return { previous };
-    },
-    onError: (error, _applicationId, context) => {
-      if (context?.previous) client.setQueryData(queryKey, context.previous);
-      reportError(error, "Could not delete that application.");
-    },
-    onSuccess: () => toast.success("Application deleted."),
     onSettled: () => invalidateApplications(client),
   });
 }
