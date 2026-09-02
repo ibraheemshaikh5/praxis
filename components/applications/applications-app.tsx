@@ -180,6 +180,7 @@ export function ApplicationsApp({
   }
 
   function commitNew() {
+    if (createApplication.isPending) return;
     if (!newDraft.company.trim() || !newDraft.title.trim()) return;
 
     createApplication.mutate(
