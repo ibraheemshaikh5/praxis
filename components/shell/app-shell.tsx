@@ -72,7 +72,7 @@ export function AppShell({
 
         <div className="relative flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
           <div className="grid size-8 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <PraxisMark className="h-5 w-7" />
+            <PraxisMark className="h-4 w-6" />
           </div>
           <div className="min-w-0">
             <p className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
@@ -123,7 +123,7 @@ export function AppShell({
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
             <div className="grid size-8 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <PraxisMark className="h-5 w-7" />
+              <PraxisMark className="h-4 w-6" />
             </div>
             <nav
               aria-label="Sections"
