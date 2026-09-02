@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Check, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
+import { PraxisBull } from "@/components/praxis-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,9 +97,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
     <div className="mx-auto w-full max-w-[22rem]">
       <div className="rounded-2xl border border-border bg-card/90 p-6 shadow-sm sm:p-8">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <Check className="size-4" strokeWidth={2.2} />
-          </div>
+          <PraxisBull className="size-11 shrink-0 text-primary" />
           <div className="min-w-0">
             <p className="text-[15px] font-semibold tracking-tight">Praxis</p>
             <p className="text-xs text-muted-foreground">Daily planner</p>
