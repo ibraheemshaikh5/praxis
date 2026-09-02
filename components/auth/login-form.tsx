@@ -97,7 +97,9 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
     <div className="mx-auto w-full max-w-[22rem]">
       <div className="rounded-2xl border border-border bg-card/90 p-6 shadow-sm sm:p-8">
         <div className="flex items-center gap-3">
-          <PraxisBull className="size-11 shrink-0 text-primary" />
+          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <PraxisBull className="h-7 w-9" />
+          </div>
           <div className="min-w-0">
             <p className="text-[15px] font-semibold tracking-tight">Praxis</p>
             <p className="text-xs text-muted-foreground">Daily planner</p>
