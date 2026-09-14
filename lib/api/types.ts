@@ -542,3 +542,121 @@ export type UpdateWhiteboardBody = {
   title?: string;
   document?: WhiteboardDocument;
 };
+
+export type CourseExamPayload = {
+  id: string;
+  courseId: string;
+  userId: string;
+  title: string;
+  examOn: string;
+  /** HH:MM in the profile time zone, or null for an all-day entry. */
+  examTime: string | null;
+  /** Days ahead of the exam that get a planner reminder, highest first. */
+  reminderDays: number[];
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseAssignmentPayload = {
+  id: string;
+  courseId: string;
+  userId: string;
+  title: string;
+  /** 0 is Sunday through 6 is Saturday. */
+  weekdays: number[];
+  dueTime: string | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BareCoursePayload = {
+  id: string;
+  userId: string;
+  name: string;
+  term: string;
+  startsOn: string;
+  endsOn: string;
+  colorKey: import("@/lib/daily-planner/appearance").TaskColorKey;
+  notes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CoursePayload = BareCoursePayload & {
+  exams: CourseExamPayload[];
+  assignments: CourseAssignmentPayload[];
+};
+
+export type CoursesResponse = {
+  courses: CoursePayload[];
+};
+
+export type CourseResponse = {
+  course: CoursePayload;
+};
+
+export type CourseExamResponse = {
+  exam: CourseExamPayload;
+};
+
+export type CourseAssignmentResponse = {
+  assignment: CourseAssignmentPayload;
+};
+
+export type CreateCourseBody = {
+  name: string;
+  term: string;
+  startsOn: string;
+  endsOn: string;
+  colorKey?: import("@/lib/daily-planner/appearance").TaskColorKey;
+  notes?: string | null;
+};
+
+export type UpdateCourseBody = {
+  name?: string;
+  term?: string;
+  startsOn?: string;
+  endsOn?: string;
+  colorKey?: import("@/lib/daily-planner/appearance").TaskColorKey;
+  notes?: string | null;
+  expectedVersion: number;
+};
+
+export type CreateCourseExamBody = {
+  title: string;
+  examOn: string;
+  examTime?: string | null;
+  reminderDays?: number[];
+  notes?: string | null;
+};
+
+export type UpdateCourseExamBody = {
+  title?: string;
+  examOn?: string;
+  examTime?: string | null;
+  reminderDays?: number[];
+  notes?: string | null;
+};
+
+export type CreateCourseAssignmentBody = {
+  title: string;
+  weekdays: number[];
+  dueTime?: string | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  notes?: string | null;
+};
+
+export type UpdateCourseAssignmentBody = {
+  title?: string;
+  weekdays?: number[];
+  dueTime?: string | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  notes?: string | null;
+};

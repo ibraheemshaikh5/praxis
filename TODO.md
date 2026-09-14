@@ -4,6 +4,7 @@
 - [ ] Long-running goals and progress tracking.
 - [ ] Life areas and improvement tracking.
 - [x] Internship application tracker with Google Sheets support.
+- [x] Class tracker whose exams and recurring work feed the daily planner.
 - [ ] Literature tracker for books, thoughts, questions, and quizzes.
 - [ ] Article tracker with notes, mind maps, questions, and quizzes.
 - [ ] Informative YouTube video tracker.

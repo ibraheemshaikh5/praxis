@@ -3,6 +3,7 @@ import type {
   ApplicationsResponse,
   AttachmentMutationResponse,
   BareConnectionPayload,
+  BareCoursePayload,
   BareMetricPayload,
   BareTaskPayload,
   BookSearchResponse,
@@ -11,11 +12,18 @@ import type {
   BuildNotesResponse,
   ConnectionMeetingResponse,
   ConnectionResponse,
+  CourseAssignmentResponse,
+  CourseExamResponse,
+  CourseResponse,
+  CoursesResponse,
   CreateApplicationBody,
   CreateBuildNoteBody,
   CreateConnectionBody,
   CreateConnectionMeetingBody,
   CreateConnectionResponse,
+  CreateCourseAssignmentBody,
+  CreateCourseBody,
+  CreateCourseExamBody,
   CreateMetricBody,
   CreateKnowledgeItemBody,
   CreateKnowledgeItemResponse,
@@ -43,6 +51,9 @@ import type {
   UpdateBuildNoteBody,
   UpdateConnectionBody,
   UpdateConnectionMeetingBody,
+  UpdateCourseAssignmentBody,
+  UpdateCourseBody,
+  UpdateCourseExamBody,
   UpdateMetricBody,
   UpdateKnowledgeItemBody,
   UpdateTaskBody,
@@ -492,6 +503,87 @@ export function updateWhiteboard(
 export function deleteWhiteboard(whiteboardId: string) {
   return request<{ whiteboard: { id: string } }>(
     `/api/whiteboards/${whiteboardId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function fetchCourses() {
+  return request<CoursesResponse>("/api/courses");
+}
+
+export function fetchCourse(courseId: string) {
+  return request<CourseResponse>(`/api/courses/${courseId}`);
+}
+
+export function createCourse(body: CreateCourseBody) {
+  return request<CourseResponse>("/api/courses", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateCourse(courseId: string, body: UpdateCourseBody) {
+  return request<CourseResponse>(`/api/courses/${courseId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteCourse(courseId: string) {
+  return request<{ course: BareCoursePayload }>(`/api/courses/${courseId}`, {
+    method: "DELETE",
+  });
+}
+
+export function createCourseExam(courseId: string, body: CreateCourseExamBody) {
+  return request<CourseExamResponse>(`/api/courses/${courseId}/exams`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateCourseExam(
+  courseId: string,
+  examId: string,
+  body: UpdateCourseExamBody,
+) {
+  return request<CourseExamResponse>(
+    `/api/courses/${courseId}/exams/${examId}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteCourseExam(courseId: string, examId: string) {
+  return request<CourseExamResponse>(
+    `/api/courses/${courseId}/exams/${examId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function createCourseAssignment(
+  courseId: string,
+  body: CreateCourseAssignmentBody,
+) {
+  return request<CourseAssignmentResponse>(
+    `/api/courses/${courseId}/assignments`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export function updateCourseAssignment(
+  courseId: string,
+  assignmentId: string,
+  body: UpdateCourseAssignmentBody,
+) {
+  return request<CourseAssignmentResponse>(
+    `/api/courses/${courseId}/assignments/${assignmentId}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteCourseAssignment(courseId: string, assignmentId: string) {
+  return request<CourseAssignmentResponse>(
+    `/api/courses/${courseId}/assignments/${assignmentId}`,
     { method: "DELETE" },
   );
 }

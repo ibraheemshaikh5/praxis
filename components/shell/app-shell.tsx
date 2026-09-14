@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Compass,
   Contact,
+  GraduationCap,
 } from "lucide-react";
 
 import {
@@ -28,6 +29,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", icon: CalendarDays, label: "Daily planner" },
+  { href: "/classes", icon: GraduationCap, label: "Classes" },
   { href: "/applications", icon: Briefcase, label: "Applications" },
   { href: "/knowledge", icon: BookOpen, label: "Knowledge" },
   { href: "/rolodex", icon: Contact, label: "Rolodex" },
