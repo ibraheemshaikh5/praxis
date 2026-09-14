@@ -16,7 +16,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CirclePlus } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus } from "lucide-react";
 
 import { DraftTaskRow } from "@/components/planner/draft-task-row";
 import { TaskRow } from "@/components/planner/task-row";
@@ -114,7 +114,13 @@ export function DaySection({
     [],
   );
 
+  const [hideDone, setHideDone] = React.useState(false);
+
   const remaining = entries.filter((entry) => !entry.task.completedAt).length;
+  const doneCount = entries.length - remaining;
+  const visibleEntries = hideDone
+    ? entries.filter((entry) => !entry.task.completedAt)
+    : entries;
   const headingId = `day-heading-${dateKey}`;
   const entryIds = entries.map((entry) => entry.id);
 
@@ -166,7 +172,9 @@ export function DaySection({
             ? minutesInTimeZone(entry.endsAt, entry.timeZone)
             : start + 30;
           const normalizedEnd = end > start ? end : start + 30;
-          return latest === null ? normalizedEnd : Math.max(latest, normalizedEnd);
+          return latest === null
+            ? normalizedEnd
+            : Math.max(latest, normalizedEnd);
         },
         null,
       );
@@ -256,22 +264,41 @@ export function DaySection({
           isToday && "border-b border-primary/25",
         )}
       >
-        <h2
-          className={cn(
-            "text-lg font-semibold tracking-[-0.02em]",
-            isToday ? "text-foreground" : "text-muted-foreground",
-          )}
-          id={headingId}
-        >
-          {isToday ? (
-            <span className="text-primary">Today</span>
-          ) : (
-            formatWeekday(dateKey)
-          )}
-          <span className="ml-2 text-sm font-normal text-muted-foreground">
-            {formatMonthDay(dateKey)}
-          </span>
-        </h2>
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h2
+            className={cn(
+              "text-lg font-semibold tracking-[-0.02em]",
+              isToday ? "text-foreground" : "text-muted-foreground",
+            )}
+            id={headingId}
+          >
+            {isToday ? (
+              <span className="text-primary">Today</span>
+            ) : (
+              formatWeekday(dateKey)
+            )}
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {formatMonthDay(dateKey)}
+            </span>
+          </h2>
+          {mode === "list" && doneCount > 0 ? (
+            <Button
+              aria-controls={`day-tasks-${dateKey}`}
+              aria-expanded={!hideDone}
+              className="self-center text-muted-foreground"
+              onClick={() => setHideDone((value) => !value)}
+              size="xs"
+              variant="ghost"
+            >
+              {hideDone ? (
+                <ChevronRight data-icon="inline-start" />
+              ) : (
+                <ChevronDown data-icon="inline-start" />
+              )}
+              {hideDone ? `Show ${doneCount} done` : "Hide done"}
+            </Button>
+          ) : null}
+        </div>
         {mode === "list" &&
         (entries.length > 0 || pendingCreates.length > 0) ? (
           <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
@@ -284,7 +311,7 @@ export function DaySection({
 
       {mode === "list" ? (
         <>
-          <div className="mt-1 space-y-0.5">
+          <div className="mt-1 space-y-0.5" id={`day-tasks-${dateKey}`}>
             {loading ? (
               <div aria-label="Loading tasks" role="status">
                 <Skeleton className="h-10 rounded-xl" />
@@ -300,7 +327,7 @@ export function DaySection({
                   items={entryIds}
                   strategy={verticalListSortingStrategy}
                 >
-                  {entries.map((entry) => (
+                  {visibleEntries.map((entry) => (
                     <TaskRow
                       entry={entry}
                       key={entry.id}
