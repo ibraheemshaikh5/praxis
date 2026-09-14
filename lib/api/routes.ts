@@ -33,6 +33,18 @@ export type ConnectionMeetingRouteContext = {
   params: Promise<{ connectionId: string; meetingId: string }>;
 };
 
+export type CourseRouteContext = {
+  params: Promise<{ courseId: string }>;
+};
+
+export type CourseExamRouteContext = {
+  params: Promise<{ courseId: string; examId: string }>;
+};
+
+export type CourseAssignmentRouteContext = {
+  params: Promise<{ assignmentId: string; courseId: string }>;
+};
+
 export async function parseJson<T>(request: Request, schema: ZodType<T>) {
   let body: unknown;
   try {
@@ -91,6 +103,29 @@ export async function resolveConnectionMeetingIds(
   return {
     connectionId: parseUuid(connectionId, "connectionId"),
     meetingId: parseUuid(meetingId, "meetingId"),
+  };
+}
+
+export async function resolveCourseId(context: CourseRouteContext) {
+  const { courseId } = await context.params;
+  return parseUuid(courseId, "courseId");
+}
+
+export async function resolveCourseExamIds(context: CourseExamRouteContext) {
+  const { courseId, examId } = await context.params;
+  return {
+    courseId: parseUuid(courseId, "courseId"),
+    examId: parseUuid(examId, "examId"),
+  };
+}
+
+export async function resolveCourseAssignmentIds(
+  context: CourseAssignmentRouteContext,
+) {
+  const { assignmentId, courseId } = await context.params;
+  return {
+    assignmentId: parseUuid(assignmentId, "assignmentId"),
+    courseId: parseUuid(courseId, "courseId"),
   };
 }
 
