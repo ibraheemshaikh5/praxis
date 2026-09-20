@@ -138,6 +138,27 @@ export function formatDayNumber(key: PlannerDateKey): number {
   return parsePlannerDate(key).getUTCDate();
 }
 
+/**
+ * Formats a date, or a date range, adding the year to any endpoint that
+ * falls outside `currentYear` so a range never reads as ambiguous.
+ */
+export function formatDateRange(
+  start: PlannerDateKey,
+  end: PlannerDateKey,
+  currentYear: number,
+): string {
+  const withYear = (key: PlannerDateKey) => {
+    const year = parsePlannerDate(key).getUTCFullYear();
+    return year === currentYear
+      ? formatMonthDay(key)
+      : `${formatMonthDay(key)}, ${year}`;
+  };
+
+  return start === end
+    ? withYear(start)
+    : `${withYear(start)} – ${withYear(end)}`;
+}
+
 /** Formats a stored time block for display in the planner day's time zone. */
 export function formatTimeBlock(
   startsAt: string | null,
