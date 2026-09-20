@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal, Plus } from "lucide-react";
 
 import {
   MetricFormDialog,
@@ -22,8 +22,14 @@ import {
   useUpdateMetric,
 } from "@/hooks/use-metrics";
 import type { MetricPayload, MetricPeriod } from "@/lib/api/types";
-import { formatMonthDay } from "@/lib/planner/dates";
+import {
+  addPlannerDaysToKey,
+  formatMonthDay,
+  startOfPlannerWeek,
+} from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
+
+const WEEK_DAYS = 7;
 
 const PERIOD_COPY: Record<MetricPeriod, string> = {
   day: "Today",
@@ -171,6 +177,46 @@ function MetricCard({
   );
 }
 
+function WeekNav({
+  anchor,
+  atCurrentWeek,
+  onNext,
+  onPrevious,
+}: {
+  anchor: string;
+  atCurrentWeek: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+}) {
+  const weekStart = startOfPlannerWeek(anchor);
+  const weekEnd = addPlannerDaysToKey(weekStart, WEEK_DAYS - 1);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Button
+        aria-label="Previous week"
+        onClick={onPrevious}
+        size="icon-xs"
+        variant="ghost"
+      >
+        <ChevronLeft />
+      </Button>
+      <span className="text-xs text-muted-foreground">
+        {formatMonthDay(weekStart)} – {formatMonthDay(weekEnd)}
+      </span>
+      <Button
+        aria-label="Next week"
+        disabled={atCurrentWeek}
+        onClick={onNext}
+        size="icon-xs"
+        variant="ghost"
+      >
+        <ChevronRight />
+      </Button>
+    </div>
+  );
+}
+
 function RailSkeleton() {
   return (
     <div aria-label="Loading goals" className="space-y-3" role="status">
@@ -191,7 +237,13 @@ function RailSkeleton() {
 }
 
 export function MetricsRail({ todayKey }: { todayKey: string }) {
-  const { data, isLoading, isError } = useMetrics(todayKey);
+  const [weeksBack, setWeeksBack] = React.useState(0);
+  const anchor =
+    weeksBack === 0
+      ? todayKey
+      : addPlannerDaysToKey(todayKey, -weeksBack * WEEK_DAYS);
+
+  const { data, isLoading, isError } = useMetrics(anchor);
   const createMetric = useCreateMetric();
   const updateMetric = useUpdateMetric();
   const archiveMetric = useArchiveMetric();
@@ -239,6 +291,13 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
           <Plus />
         </Button>
       </div>
+
+      <WeekNav
+        anchor={anchor}
+        atCurrentWeek={weeksBack === 0}
+        onNext={() => setWeeksBack((weeks) => Math.max(0, weeks - 1))}
+        onPrevious={() => setWeeksBack((weeks) => weeks + 1)}
+      />
 
       {isLoading ? <RailSkeleton /> : null}
 

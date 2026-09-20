@@ -35,6 +35,11 @@ export function addPlannerDaysToKey(
   return plannerDateKey(addPlannerDays(parsePlannerDate(key), amount));
 }
 
+/** Sunday of the week containing `key`, matching the metrics week window. */
+export function startOfPlannerWeek(key: PlannerDateKey): PlannerDateKey {
+  return addPlannerDaysToKey(key, -parsePlannerDate(key).getUTCDay());
+}
+
 /** Whole days from `a` to `b`, positive when `b` is later. */
 export function differenceInPlannerDays(
   a: PlannerDateKey,
