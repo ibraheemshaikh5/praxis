@@ -35,6 +35,11 @@ export function addPlannerDaysToKey(
   return plannerDateKey(addPlannerDays(parsePlannerDate(key), amount));
 }
 
+/** Sunday of the week containing `key`, matching the metrics week window. */
+export function startOfPlannerWeek(key: PlannerDateKey): PlannerDateKey {
+  return addPlannerDaysToKey(key, -parsePlannerDate(key).getUTCDay());
+}
+
 /** Whole days from `a` to `b`, positive when `b` is later. */
 export function differenceInPlannerDays(
   a: PlannerDateKey,
@@ -131,6 +136,27 @@ export function formatMonthDay(key: PlannerDateKey): string {
 
 export function formatDayNumber(key: PlannerDateKey): number {
   return parsePlannerDate(key).getUTCDate();
+}
+
+/**
+ * Formats a date, or a date range, adding the year to any endpoint that
+ * falls outside `currentYear` so a range never reads as ambiguous.
+ */
+export function formatDateRange(
+  start: PlannerDateKey,
+  end: PlannerDateKey,
+  currentYear: number,
+): string {
+  const withYear = (key: PlannerDateKey) => {
+    const year = parsePlannerDate(key).getUTCFullYear();
+    return year === currentYear
+      ? formatMonthDay(key)
+      : `${formatMonthDay(key)}, ${year}`;
+  };
+
+  return start === end
+    ? withYear(start)
+    : `${withYear(start)} – ${withYear(end)}`;
 }
 
 /** Formats a stored time block for display in the planner day's time zone. */

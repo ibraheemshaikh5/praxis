@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal, Plus } from "lucide-react";
 
 import {
   MetricFormDialog,
@@ -22,8 +22,16 @@ import {
   useUpdateMetric,
 } from "@/hooks/use-metrics";
 import type { MetricPayload, MetricPeriod } from "@/lib/api/types";
-import { formatMonthDay } from "@/lib/planner/dates";
+import {
+  addPlannerDaysToKey,
+  formatDateRange,
+  formatMonthDay,
+  parsePlannerDate,
+  startOfPlannerWeek,
+} from "@/lib/planner/dates";
 import { cn } from "@/lib/utils";
+
+const WEEK_DAYS = 7;
 
 const PERIOD_COPY: Record<MetricPeriod, string> = {
   day: "Today",
@@ -82,12 +90,16 @@ function HistorySpark({ history }: { history: MetricPayload["history"] }) {
 }
 
 function MetricCard({
+  currentYear,
+  isCurrentPeriod,
   metric,
   todayKey,
   onEdit,
   onArchive,
   archiving,
 }: {
+  currentYear: number;
+  isCurrentPeriod: boolean;
   metric: MetricPayload;
   todayKey: string;
   onEdit: (metric: MetricPayload) => void;
@@ -96,6 +108,9 @@ function MetricCard({
 }) {
   const [confirmArchive, setConfirmArchive] = React.useState(false);
   const ended = metric.endsOn ? todayKey > metric.endsOn : false;
+  const periodLabel = isCurrentPeriod
+    ? PERIOD_COPY[metric.period]
+    : formatDateRange(metric.periodStart, metric.periodEnd, currentYear);
 
   return (
     <article className="rounded-2xl border border-border/80 bg-card/60 px-3.5 py-3">
@@ -105,7 +120,7 @@ function MetricCard({
             {metric.name}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {PERIOD_COPY[metric.period]}
+            {periodLabel}
             {metric.endsOn ? (
               <>
                 {" · "}
@@ -171,6 +186,48 @@ function MetricCard({
   );
 }
 
+function WeekNav({
+  anchor,
+  atCurrentWeek,
+  currentYear,
+  onNext,
+  onPrevious,
+}: {
+  anchor: string;
+  atCurrentWeek: boolean;
+  currentYear: number;
+  onNext: () => void;
+  onPrevious: () => void;
+}) {
+  const weekStart = startOfPlannerWeek(anchor);
+  const weekEnd = addPlannerDaysToKey(weekStart, WEEK_DAYS - 1);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Button
+        aria-label="Previous week"
+        onClick={onPrevious}
+        size="icon-xs"
+        variant="ghost"
+      >
+        <ChevronLeft />
+      </Button>
+      <span className="text-xs text-muted-foreground">
+        {formatDateRange(weekStart, weekEnd, currentYear)}
+      </span>
+      <Button
+        aria-label="Next week"
+        disabled={atCurrentWeek}
+        onClick={onNext}
+        size="icon-xs"
+        variant="ghost"
+      >
+        <ChevronRight />
+      </Button>
+    </div>
+  );
+}
+
 function RailSkeleton() {
   return (
     <div aria-label="Loading goals" className="space-y-3" role="status">
@@ -191,7 +248,14 @@ function RailSkeleton() {
 }
 
 export function MetricsRail({ todayKey }: { todayKey: string }) {
-  const { data, isLoading, isError } = useMetrics(todayKey);
+  const [weeksBack, setWeeksBack] = React.useState(0);
+  const isCurrentPeriod = weeksBack === 0;
+  const anchor = isCurrentPeriod
+    ? todayKey
+    : addPlannerDaysToKey(todayKey, -weeksBack * WEEK_DAYS);
+  const currentYear = parsePlannerDate(todayKey).getUTCFullYear();
+
+  const { data, isLoading, isError } = useMetrics(anchor);
   const createMetric = useCreateMetric();
   const updateMetric = useUpdateMetric();
   const archiveMetric = useArchiveMetric();
@@ -240,6 +304,14 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
         </Button>
       </div>
 
+      <WeekNav
+        anchor={anchor}
+        atCurrentWeek={isCurrentPeriod}
+        currentYear={currentYear}
+        onNext={() => setWeeksBack((weeks) => Math.max(0, weeks - 1))}
+        onPrevious={() => setWeeksBack((weeks) => weeks + 1)}
+      />
+
       {isLoading ? <RailSkeleton /> : null}
 
       {!isLoading && isError ? (
@@ -265,6 +337,8 @@ export function MetricsRail({ todayKey }: { todayKey: string }) {
                 archiveMetric.isPending &&
                 archiveMetric.variables === metric.id
               }
+              currentYear={currentYear}
+              isCurrentPeriod={isCurrentPeriod}
               key={metric.id}
               metric={metric}
               onArchive={(metricId) => archiveMetric.mutate(metricId)}
