@@ -16,8 +16,9 @@ Status: implemented foundation. Changes continue through migrations.
 - Attachments are supported without blocking creation or editing.
 - Attachments are limited to supported images, PDF, text, and Markdown up to
   25 MiB.
-- Recurrence is deferred; future occurrences will be distinct tasks linked to a
-  recurrence rule.
+- Recurrence exists only for class work: future occurrences are distinct tasks
+  linked to the exam or assignment that produced them. General task recurrence
+  is still deferred.
 - Offline synchronization is out of scope for the first version.
 
 ## Tables
@@ -159,3 +160,67 @@ Decisions:
 - `document`: `jsonb`, up to 4 MiB serialized
 - `created_at`
 - `updated_at`
+
+## Classes
+
+Decisions:
+
+- A class carries its own term dates. Recurring work never reaches past them,
+  so a rule cannot fill the planner indefinitely.
+- Exams and recurring work are materialised into ordinary planner tasks when
+  they are written, not on a schedule. `course_tasks` links each task to its
+  source and the date the rule produced it, which makes a later edit a diff
+  rather than a rewrite. See `docs/classes-api.md` for the rules of that pass.
+- Only a class carries a version; exams and assignments are edited in place,
+  as meetings are.
+- Removing a class, exam, or assignment is immediate; the planner tasks it
+  wrote are soft-deleted the way a planner delete is, and completed ones stay.
+
+### courses
+
+- `id`
+- `user_id`
+- `name`
+- `term`: free text, e.g. `Fall 2026`
+- `starts_on`, `ends_on`: at most 400 days apart
+- `color_key`: one of the planner task colours
+- `notes`
+- `version`
+- `created_at`
+- `updated_at`
+
+### course_exams
+
+- `id`
+- `course_id`
+- `user_id`
+- `title`
+- `exam_on`
+- `exam_time`: wall-clock time in the profile time zone, or null
+- `reminder_days`: days ahead of the exam that get a reminder, default
+  `{7,3,1}`, empty for day-of only
+- `notes`
+- `created_at`
+- `updated_at`
+
+### course_assignments
+
+- `id`
+- `course_id`
+- `user_id`
+- `title`
+- `weekdays`: `0` Sunday through `6` Saturday
+- `due_time`
+- `starts_on`, `ends_on`: null falls back to the class's term
+- `notes`
+- `created_at`
+- `updated_at`
+
+### course_tasks
+
+- `task_id`
+- `user_id`
+- `course_id`
+- `exam_id` or `assignment_id`: exactly one is set
+- `occurs_on`: the date the rule produced; unique per source
+- `created_at`
