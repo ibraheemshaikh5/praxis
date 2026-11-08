@@ -9,6 +9,7 @@ import {
   getSmsConversationService,
   getSmsMessageCreator,
 } from "@/lib/sms/runtime";
+import { sendblueLine } from "@/lib/sms/sendblue";
 
 // A poll answers up to a few texts in turn, each one a Claude round trip.
 // This bounds the background work started below.
@@ -47,6 +48,7 @@ async function poll(request: Request) {
       try {
         const result = await pollSendblue({
           config,
+          line: sendblueLine(config.sendblue, config.assistant.ownerPhone),
           conversation: getSmsConversationService(),
           planner: getDailyPlannerService(),
           client: getSmsMessageCreator(),
