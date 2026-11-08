@@ -1,8 +1,8 @@
 import type { HistoryTurn, MessageCreator } from "./agent";
 import { runSmsAgent } from "./agent";
-import type { SmsConfig } from "./config";
+import type { AssistantConfig, TwilioConfig } from "./config";
 import type { PlannerOperations } from "./tools";
-import { isValidTwilioSignature, sendSms } from "./twilio";
+import { isValidTwilioSignature } from "./twilio";
 
 export const FAILURE_REPLY =
   "Something went wrong. Check the planner before trying again.";
@@ -17,7 +17,7 @@ export type InboundDecision =
  * is acknowledged and dropped: a stranger who finds the number gets nothing.
  */
 export function screenInbound(
-  config: SmsConfig,
+  config: TwilioConfig,
   url: string,
   params: Record<string, string>,
   signature: string | null,
@@ -32,7 +32,7 @@ export function screenInbound(
   const providerSid = params.MessageSid?.trim();
   const body = params.Body?.trim();
 
-  if (from !== config.ownerPhone || !providerSid || !body) {
+  if (from !== config.assistant.ownerPhone || !providerSid || !body) {
     return { kind: "ignored" };
   }
   return { kind: "accepted", providerSid, body };
@@ -48,18 +48,26 @@ export type ConversationStore = {
   ): Promise<unknown>;
 };
 
-/** Runs the agent on a recorded inbound text and texts the reply back. */
+/** Delivers a reply to the owner; returns the provider's id for it. */
+export type ReplySender = (
+  body: string,
+) => Promise<{ providerSid: string | null }>;
+
+/**
+ * Runs the agent on a recorded inbound text and sends the reply back through
+ * whichever channel the text arrived on.
+ */
 export async function replyToText(deps: {
-  config: SmsConfig;
+  assistant: AssistantConfig;
   conversation: ConversationStore;
   planner: PlannerOperations;
   client: MessageCreator;
   timeZone: string;
   inboundId: string;
   text: string;
-  fetchImpl?: typeof fetch;
+  send: ReplySender;
 }) {
-  const { config, conversation } = deps;
+  const { assistant: config, conversation } = deps;
   const userId = config.ownerUserId;
 
   let reply: string;
@@ -78,11 +86,6 @@ export async function replyToText(deps: {
     reply = FAILURE_REPLY;
   }
 
-  const { sid } = await sendSms(
-    config.twilio,
-    config.ownerPhone,
-    reply,
-    deps.fetchImpl,
-  );
-  await conversation.recordOutbound(userId, sid, reply, toolLog);
+  const { providerSid } = await deps.send(reply);
+  await conversation.recordOutbound(userId, providerSid, reply, toolLog);
 }
