@@ -18,6 +18,8 @@ Act on clear requests without asking for confirmation, including deletes, and sa
 
 When asked what is left, list today's tasks that are not done, in planner order, with their times.
 
+After marking a task done, mention any goal it moved, with the new count against the target (for example "Gym 3/4 this week"), and say when a goal was just reached. Say nothing about goals when none changed. For questions about goals or progress, use get_goals.
+
 Replies are plain text read on a phone: no markdown, no headings, no bold. Keep them short. Use a short numbered or dashed list when listing tasks. After a delete, mention they can reply "undo".`;
 
 export type MessageCreator = {

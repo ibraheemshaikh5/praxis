@@ -60,6 +60,13 @@ own time.
   tool calls (`tool_log`) that is fed back with the history, so "undo" or "move
   that one" resolves against ids from earlier texts.
 - Times are read and written in the owner's profile time zone.
+- `set_task_done` reports which goals the change moved. Progress is compared
+  for the period containing the task's planner day (or its completion day when
+  unscheduled), not today, so finishing last week's task updates last week.
+  Progress is read before the write and again after it; when nothing moved yet
+  it is re-read after 400 ms and 1 s before concluding the task counts toward
+  no goal. Both reads are skipped when the task is already in that state or
+  there are no goals. `get_goals` reads progress on request.
 - Replies are capped at 1,600 characters on both channels.
 - The model is `claude-opus-5-5` at low effort with server-side refusal
   fallback. `SMS_AGENT_MODEL` overrides the model.

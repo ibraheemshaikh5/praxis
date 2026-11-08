@@ -14,7 +14,10 @@ import {
   ValidationError,
 } from "@/lib/daily-planner/errors";
 import type { DailyPlannerService } from "@/lib/daily-planner/service";
+import { calendarDateInTimeZone } from "@/lib/daily-planner/time";
 import { minutesInTimeZone, zonedDateTimeToIso } from "@/lib/planner/timeline";
+
+import { settledGoalChanges, summarizeGoals } from "./goals";
 
 /** The planner operations the SMS agent is allowed to perform. */
 export type PlannerOperations = Pick<
@@ -28,12 +31,17 @@ export type PlannerOperations = Pick<
   | "deleteTask"
   | "restoreTask"
   | "findTask"
+  | "findActivePlannerDate"
+  | "listMetrics"
 >;
 
 export type ToolContext = {
   planner: PlannerOperations;
   userId: string;
   timeZone: string;
+  /** Overridable for tests; defaults to the clock and a real timer. */
+  now?: () => Date;
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export type ToolOutcome = { content: string; isError: boolean };
@@ -99,6 +107,18 @@ const reorderDayInput = z.object({
 
 const taskOnlyInput = z.object({ task_id: taskId });
 
+const getGoalsInput = z.object({
+  date: calendarDate
+    .optional()
+    .describe("Show the goal periods containing this date; defaults to today"),
+  include_history: z
+    .boolean()
+    .optional()
+    .describe(
+      "Also return counts for the seven periods before the current one",
+    ),
+});
+
 type ToolSpec<T> = {
   description: string;
   input: z.ZodType<T>;
@@ -158,17 +178,26 @@ const TOOL_SPECS: Record<string, ToolSpec<unknown>> = {
     },
   }),
   set_task_done: tool({
-    description: "Mark a task done, or not done.",
+    description:
+      "Mark a task done, or not done. The result lists any goal whose progress changed as a result, with its count before and after.",
     input: setDoneInput,
-    run: (context, input) =>
-      withCurrentVersion(context, input.task_id, async (version) => {
-        const task = await context.planner.setCompletion(
-          context.userId,
-          input.task_id,
-          { completed: input.done, expectedVersion: version },
-        );
-        return { task_id: task.id, title: task.title, done: input.done };
-      }),
+    run: (context, input) => setTaskDone(context, input),
+  }),
+  get_goals: tool({
+    description:
+      "List the owner's goals with progress for the current period (day, week or month): count, target, what remains, and whether it is met. A completed task counts toward a goal when its title matches one of the goal's keywords.",
+    input: getGoalsInput,
+    run: async (context, input) => {
+      const result = await context.planner.listMetrics(context.userId, {
+        anchor: input.date ?? today(context),
+      });
+      return {
+        date: result.anchor,
+        goals: summarizeGoals(result, {
+          includeHistory: input.include_history ?? false,
+        }),
+      };
+    },
   }),
   schedule_task: tool({
     description:
@@ -276,6 +305,60 @@ export async function runPlannerTool(
     }
     throw error;
   }
+}
+
+/**
+ * Completes (or reopens) a task and reports how goal progress moved.
+ *
+ * A completed task counts toward its planner day, or the day it was completed
+ * when it has none, so progress is compared for the period containing that
+ * day rather than today: ticking off yesterday's task changes yesterday's
+ * week. Progress is read before the write and again after it, re-reading a
+ * few times over about a second and a half before concluding nothing moved.
+ */
+async function setTaskDone(
+  context: ToolContext,
+  input: z.infer<typeof setDoneInput>,
+) {
+  const { planner, userId } = context;
+  const current = await planner.findTask(userId, input.task_id);
+  if (!current || current.deletedAt) throw new NotFoundError();
+
+  const alreadyThere = (current.completedAt !== null) === input.done;
+  const anchor =
+    (await planner.findActivePlannerDate(userId, input.task_id)) ??
+    (!input.done && current.completedAt
+      ? calendarDateInTimeZone(current.completedAt, context.timeZone)
+      : today(context));
+
+  // Nothing to compare when the task is already in that state or there are
+  // no goals: skip the reads and the wait.
+  const before = alreadyThere
+    ? null
+    : await planner.listMetrics(userId, { anchor });
+  const tracked = before !== null && before.metrics.length > 0;
+
+  const task = await withCurrentVersion(context, input.task_id, (version) =>
+    planner.setCompletion(userId, input.task_id, {
+      completed: input.done,
+      expectedVersion: version,
+    }),
+  );
+
+  const goalChanges = tracked
+    ? await settledGoalChanges(
+        () => planner.listMetrics(userId, { anchor }),
+        before,
+        context.sleep ?? wait,
+      )
+    : [];
+
+  return {
+    task_id: task.id,
+    title: task.title,
+    done: input.done,
+    goal_changes: goalChanges,
+  };
 }
 
 async function listTasks(
@@ -407,6 +490,17 @@ function timeBlock(
       ? toIso(date, input.end_time, context.timeZone)
       : null,
   };
+}
+
+function today(context: ToolContext) {
+  return calendarDateInTimeZone(
+    context.now?.() ?? new Date(),
+    context.timeZone,
+  );
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 function toIso(date: string, time: string, timeZone: string) {

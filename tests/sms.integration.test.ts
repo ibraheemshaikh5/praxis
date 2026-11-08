@@ -102,6 +102,92 @@ describeDatabase("sms assistant database integration", () => {
     ).toEqual([{ task_id: gym.task_id, title: "Leg day", done: true }]);
   });
 
+  it("reports goal progress a completion moves, using real keyword matching", async () => {
+    const sleeps: number[] = [];
+    const goalContext: ToolContext = {
+      ...context,
+      // Sunday 8 November, evening in New York: the week of 8–14 November.
+      now: () => new Date("2026-11-09T01:00:00Z"),
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    };
+    const done = async (taskId: string, value = true) => {
+      const outcome = await runPlannerTool(goalContext, "set_task_done", {
+        task_id: taskId,
+        done: value,
+      });
+      if (outcome.isError) throw new Error(outcome.content);
+      return JSON.parse(outcome.content).goal_changes;
+    };
+
+    await planner.createMetric(OWNER, {
+      name: "Gym",
+      keywords: ["gym"],
+      targetCount: 2,
+      period: "week",
+    });
+    const first = await planner.createTask(OWNER, {
+      title: "Gym session",
+      plannerDate: "2026-11-09",
+    });
+    const second = await planner.createTask(OWNER, {
+      title: "Leg day at the gym",
+      plannerDate: "2026-11-10",
+    });
+    const lastWeek = await planner.createTask(OWNER, {
+      title: "Gym",
+      plannerDate: "2026-11-03",
+    });
+    const unrelated = await planner.createTask(OWNER, {
+      title: "Call dentist",
+      plannerDate: "2026-11-09",
+    });
+
+    expect(await done(first.task.id)).toEqual([
+      {
+        goal: "Gym",
+        period_start: "2026-11-08",
+        period_end: "2026-11-14",
+        before: 0,
+        after: 1,
+        target: 2,
+        reached_target: false,
+      },
+    ]);
+    expect(await done(second.task.id)).toEqual([
+      expect.objectContaining({ before: 1, after: 2, reached_target: true }),
+    ]);
+    // Counted toward its own week, not the current one.
+    expect(await done(lastWeek.task.id)).toEqual([
+      expect.objectContaining({
+        period_start: "2026-11-01",
+        before: 0,
+        after: 1,
+      }),
+    ]);
+    expect(await done(second.task.id, false)).toEqual([
+      expect.objectContaining({ before: 2, after: 1 }),
+    ]);
+    // No first-read change in any of those, so no waiting.
+    expect(sleeps).toEqual([]);
+
+    // A task no goal counts settles for every re-read, then reports nothing.
+    expect(await done(unrelated.task.id)).toEqual([]);
+    expect(sleeps).toEqual([400, 1000]);
+
+    const goals = await runPlannerTool(goalContext, "get_goals", {});
+    expect(JSON.parse(goals.content).goals).toEqual([
+      expect.objectContaining({
+        name: "Gym",
+        count: 1,
+        target: 2,
+        remaining: 1,
+        period_start: "2026-11-08",
+      }),
+    ]);
+  });
+
   it("cannot reach another user's task", async () => {
     const { task } = await planner.createTask(OTHER, {
       title: "Not yours",

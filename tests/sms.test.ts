@@ -334,6 +334,14 @@ function fakePlanner() {
       return task;
     }),
     findTask: vi.fn(async (_userId: string, id: string) => tasks.get(id)),
+    findActivePlannerDate: vi.fn(
+      async (_userId: string, id: string) =>
+        entries.find((entry) => entry.taskId === id)?.plannerDate ?? null,
+    ),
+    listMetrics: vi.fn(async (_userId: string, query: { anchor: string }) => ({
+      anchor: query.anchor,
+      metrics: [] as unknown[],
+    })),
   };
 
   return {
@@ -354,6 +362,7 @@ describe("planner tools", () => {
       "add_task",
       "update_task",
       "set_task_done",
+      "get_goals",
       "schedule_task",
       "reorder_day",
       "delete_task",
