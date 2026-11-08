@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import { truncateSms } from "./text";
+import { truncateSms } from "./limits";
 
 const API_BASE = "https://api.sendblue.com";
 const REQUEST_TIMEOUT_MS = 15_000;

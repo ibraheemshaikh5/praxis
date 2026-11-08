@@ -4,7 +4,7 @@ import type { Database } from "@/lib/db/client";
 import { smsMessages } from "@/lib/db/schema";
 
 import type { HistoryTurn } from "./agent";
-import { truncateSms } from "./text";
+import { truncateSms, truncateToolLog } from "./limits";
 
 // Enough to resolve "that one" or "undo" a few texts later, without dragging a
 // stale conversation from yesterday into today's requests.
@@ -45,7 +45,7 @@ export class SmsConversationService {
         direction: "outbound",
         providerSid,
         body: truncateSms(body),
-        toolLog: toolLog?.slice(-8000) ?? null,
+        toolLog: toolLog === null ? null : truncateToolLog(toolLog),
       })
       .returning();
     return row;

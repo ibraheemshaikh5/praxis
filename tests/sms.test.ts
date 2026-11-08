@@ -20,7 +20,7 @@ import {
   isValidTwilioSignature,
   sendSms,
 } from "@/lib/sms/twilio";
-import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/text";
+import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 
 const USER_ID = "00000000-0000-4000-8000-0000000000a1";
 const TASK_A = "00000000-0000-4000-8000-00000000000a";
