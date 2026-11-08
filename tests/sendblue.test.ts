@@ -5,7 +5,7 @@ import type { MessageCreator } from "@/lib/sms/agent";
 import type { SendblueConfig } from "@/lib/sms/config";
 import { FAILURE_REPLY } from "@/lib/sms/reply";
 import { POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
-import { listInboundTexts, sendSendblueText } from "@/lib/sms/sendblue";
+import { sendblueLine } from "@/lib/sms/sendblue";
 import type { PlannerOperations } from "@/lib/sms/tools";
 import type { ConversationStore } from "@/lib/sms/types";
 
@@ -62,7 +62,7 @@ function sendblueFetch(rows: unknown[], sendStatus = 200) {
 describe("sendblue client", () => {
   it("asks for the owner's inbound texts to the line since a time", async () => {
     const { fetchImpl } = sendblueFetch([]);
-    await listInboundTexts(CONFIG.sendblue, OWNER, NOW, fetchImpl);
+    await sendblueLine(CONFIG.sendblue, OWNER, fetchImpl).listInboundTexts(NOW);
 
     const [input, init] = fetchImpl.mock.calls[0];
     const url = new URL(String(input));
@@ -99,7 +99,9 @@ describe("sendblue client", () => {
     ]);
 
     expect(
-      await listInboundTexts(CONFIG.sendblue, OWNER, NOW, fetchImpl),
+      await sendblueLine(CONFIG.sendblue, OWNER, fetchImpl).listInboundTexts(
+        NOW,
+      ),
     ).toEqual([
       { handle: "a", body: "add milk" },
       { handle: "h", body: "what's left?" },
@@ -111,15 +113,15 @@ describe("sendblue client", () => {
       async () => new Response("Unauthorized", { status: 401 }),
     );
     await expect(
-      listInboundTexts(CONFIG.sendblue, OWNER, NOW, fetchImpl),
+      sendblueLine(CONFIG.sendblue, OWNER, fetchImpl).listInboundTexts(NOW),
     ).rejects.toThrow("Sendblue list failed (401)");
   });
 
   it("sends from the line, as the free plan requires", async () => {
     const { fetchImpl, sent } = sendblueFetch([]);
     expect(
-      await sendSendblueText(CONFIG.sendblue, OWNER, "Added milk.", fetchImpl),
-    ).toEqual({ handle: "out-1" });
+      await sendblueLine(CONFIG.sendblue, OWNER, fetchImpl).send("Added milk."),
+    ).toEqual({ providerSid: "out-1" });
     expect(sent).toEqual([
       { number: OWNER, from_number: LINE, content: "Added milk." },
     ]);
@@ -133,14 +135,14 @@ describe("sendblue client", () => {
       ),
     );
     await expect(
-      sendSendblueText(CONFIG.sendblue, OWNER, "hi", declined),
+      sendblueLine(CONFIG.sendblue, OWNER, declined).send("hi"),
     ).rejects.toThrow("Sendblue send failed (400)");
 
     const declinedOk = vi.fn<typeof fetch>(async () =>
       Response.json({ status: "DECLINED" }),
     );
     await expect(
-      sendSendblueText(CONFIG.sendblue, OWNER, "hi", declinedOk),
+      sendblueLine(CONFIG.sendblue, OWNER, declinedOk).send("hi"),
     ).rejects.toThrow("Sendblue send DECLINED");
   });
 });
@@ -218,7 +220,7 @@ describe("sendblue poller", () => {
       client,
       timeZone: "America/New_York",
       now: NOW,
-      fetchImpl,
+      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
 
     expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 2 });
@@ -259,7 +261,7 @@ describe("sendblue poller", () => {
       client,
       timeZone: "America/New_York",
       now: NOW,
-      fetchImpl,
+      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
 
     expect(await pollSendblue(deps)).toEqual({ seen: 7, answered: 5 });
@@ -284,7 +286,7 @@ describe("sendblue poller", () => {
       client,
       timeZone: "America/New_York",
       now: NOW,
-      fetchImpl,
+      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     });
 
     error.mockRestore();
@@ -307,7 +309,7 @@ describe("sendblue poller", () => {
       client,
       timeZone: "America/New_York",
       now: NOW,
-      fetchImpl,
+      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
     expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 2 });
     expect(error).toHaveBeenCalledTimes(2);

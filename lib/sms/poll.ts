@@ -1,7 +1,7 @@
 import type { MessageCreator } from "./agent";
 import type { SendblueConfig } from "./config";
 import { replyToText } from "./reply";
-import { listInboundTexts, sendSendblueText } from "./sendblue";
+import type { SendblueLine } from "./sendblue";
 import type { PlannerOperations } from "./tools";
 import type { ConversationStore } from "./types";
 
@@ -21,22 +21,19 @@ const MAX_TEXTS_PER_POLL = 5;
  */
 export async function pollSendblue(deps: {
   config: SendblueConfig;
+  line: SendblueLine;
   conversation: ConversationStore;
   planner: PlannerOperations;
   client: MessageCreator;
   timeZone: string;
   now?: Date;
-  fetchImpl?: typeof fetch;
 }) {
-  const { config, conversation } = deps;
-  const { assistant, sendblue } = config;
+  const { conversation, line } = deps;
+  const { assistant } = deps.config;
   const now = deps.now ?? new Date();
 
-  const texts = await listInboundTexts(
-    sendblue,
-    assistant.ownerPhone,
+  const texts = await line.listInboundTexts(
     new Date(now.getTime() - POLL_LOOKBACK_MS),
-    deps.fetchImpl,
   );
 
   let answered = 0;
@@ -60,15 +57,7 @@ export async function pollSendblue(deps: {
         timeZone: deps.timeZone,
         inboundId: inbound.id,
         text: text.body,
-        send: async (body) => {
-          const { handle } = await sendSendblueText(
-            sendblue,
-            assistant.ownerPhone,
-            body,
-            deps.fetchImpl,
-          );
-          return { providerSid: handle };
-        },
+        send: line.send,
       });
     } catch (error) {
       // The text stays recorded, so it is not answered twice; the next text
