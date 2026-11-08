@@ -1,0 +1,105 @@
+name: Deploy migrations
+
+# Applies migrations to the hosted databases after CI passes on main: the dev
+# project at once, then production once a reviewer approves the "production"
+# environment. Both steps run the same scripts as a local run, so every guard
+# still applies: each database must declare what it is, and production only
+# takes migrations dev already has. The approval stands in for typing
+# PRAXIS_CONFIRM_PRODUCTION by hand.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# A migration is never cancelled halfway; a later run waits for this one.
+# This is why deployment is its own workflow: CI cancels superseded runs.
+concurrency:
+  group: deploy-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dev:
+    # Only a passing CI run for a push to this repository's main. A pull
+    # request never qualifies, including one from a fork whose branch is also
+    # named main.
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      production-pending: ${{ steps.plan.outputs.pending }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The commit CI tested, not whatever main has moved on to since.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply to dev
+        env:
+          DEV_DIRECT_DATABASE_URL: ${{ secrets.DEV_DIRECT_DATABASE_URL }}
+          PRAXIS_PRODUCTION_PROJECT_REF: ${{ secrets.PRAXIS_PRODUCTION_PROJECT_REF }}
+        run: pnpm db:migrate:dev
+
+      # A dry run against production. When nothing is pending the production
+      # job is skipped, so a merge without a migration asks for no approval.
+      - name: Plan production
+        id: plan
+        shell: bash
+        env:
+          DEV_DIRECT_DATABASE_URL: ${{ secrets.DEV_DIRECT_DATABASE_URL }}
+          PRODUCTION_DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL }}
+          PRAXIS_PRODUCTION_PROJECT_REF: ${{ secrets.PRAXIS_PRODUCTION_PROJECT_REF }}
+        run: |
+          pnpm db:migrate:prod:plan | tee plan.log
+          # scripts/db-migrate.ts prints this when production has nothing pending.
+          if grep -q "is already up to date" plan.log; then
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  production:
+    needs: dev
+    if: needs.dev.outputs.production-pending == 'true'
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this environment in the repository
+    # settings; the job waits here until one approves.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply to production
+        env:
+          DEV_DIRECT_DATABASE_URL: ${{ secrets.DEV_DIRECT_DATABASE_URL }}
+          PRODUCTION_DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL }}
+          PRAXIS_PRODUCTION_PROJECT_REF: ${{ secrets.PRAXIS_PRODUCTION_PROJECT_REF }}
+          PRAXIS_CONFIRM_PRODUCTION: ${{ secrets.PRAXIS_PRODUCTION_PROJECT_REF }}
+        run: pnpm db:migrate:prod
