@@ -1,43 +1,11 @@
 import type { MessageCreator } from "./agent";
 import { runSmsAgent } from "./agent";
-import type { AssistantConfig, TwilioConfig } from "./config";
+import type { AssistantConfig } from "./config";
 import type { PlannerOperations } from "./tools";
-import { isValidTwilioSignature } from "./twilio";
 import type { ConversationStore } from "./types";
 
 export const FAILURE_REPLY =
   "Something went wrong. Check the planner before trying again.";
-
-export type InboundDecision =
-  | { kind: "rejected"; status: 403 }
-  | { kind: "ignored" }
-  | { kind: "accepted"; providerSid: string; body: string };
-
-/**
- * Decides whether a webhook delivery is a text from the owner. Anything else
- * is acknowledged and dropped: a stranger who finds the number gets nothing.
- */
-export function screenInbound(
-  config: TwilioConfig,
-  url: string,
-  params: Record<string, string>,
-  signature: string | null,
-): InboundDecision {
-  if (
-    !isValidTwilioSignature(config.twilio.authToken, url, params, signature)
-  ) {
-    return { kind: "rejected", status: 403 };
-  }
-
-  const from = params.From?.trim();
-  const providerSid = params.MessageSid?.trim();
-  const body = params.Body?.trim();
-
-  if (from !== config.assistant.ownerPhone || !providerSid || !body) {
-    return { kind: "ignored" };
-  }
-  return { kind: "accepted", providerSid, body };
-}
 
 /** Delivers a reply to the owner; returns the provider's id for it. */
 export type ReplySender = (

@@ -3,12 +3,17 @@ import { after, NextResponse } from "next/server";
 import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
 import { getProfileTimeZone } from "@/lib/planner/profile";
 import { readTwilioConfig } from "@/lib/sms/config";
-import { replyToText, screenInbound } from "@/lib/sms/inbound";
+import { replyToText } from "@/lib/sms/reply";
 import {
   getSmsConversationService,
   getSmsMessageCreator,
 } from "@/lib/sms/runtime";
-import { emptyTwimlResponse, sendSms } from "@/lib/sms/twilio";
+import {
+  emptyTwimlResponse,
+  readTwilioForm,
+  screenTwilioWebhook,
+  sendSms,
+} from "@/lib/sms/twilio";
 
 // The reply is produced after the webhook is acknowledged; this bounds that.
 export const maxDuration = 60;
@@ -32,23 +37,19 @@ export async function POST(request: Request) {
 
   let params: Record<string, string>;
   try {
-    const form = await request.formData();
-    params = Object.fromEntries(
-      [...form.entries()].map(([key, value]) => [key, String(value)]),
-    );
+    params = await readTwilioForm(request);
   } catch {
     return new Response(null, { status: 400 });
   }
 
-  const decision = screenInbound(
-    config,
+  const decision = screenTwilioWebhook(
+    config.twilio.authToken,
+    config.assistant.ownerPhone,
     config.webhookUrl ?? request.url,
     params,
     request.headers.get("x-twilio-signature"),
   );
-  if (decision.kind === "rejected") {
-    return new Response(null, { status: decision.status });
-  }
+  if (decision.kind === "rejected") return new Response(null, { status: 403 });
   if (decision.kind === "ignored") return emptyTwimlResponse();
 
   const conversation = getSmsConversationService();

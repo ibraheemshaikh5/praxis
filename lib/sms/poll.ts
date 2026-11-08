@@ -1,6 +1,6 @@
 import type { MessageCreator } from "./agent";
 import type { SendblueConfig } from "./config";
-import { replyToText } from "./inbound";
+import { replyToText } from "./reply";
 import { listInboundTexts, sendSendblueText } from "./sendblue";
 import type { PlannerOperations } from "./tools";
 import type { ConversationStore } from "./types";
