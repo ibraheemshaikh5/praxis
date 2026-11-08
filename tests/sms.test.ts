@@ -429,7 +429,7 @@ describe("sms agent", () => {
         content: [
           {
             type: "text",
-            text: "Current time: Sunday, November 8, 2026 at 9:30 AM (America/New_York); today is 2026-11-08",
+            text: "Today is Sunday, November 8, 2026 (2026-11-08)",
           },
           { type: "text", text: "done with laundry" },
         ],
