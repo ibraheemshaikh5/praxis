@@ -2,8 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Twilio rejects a message body longer than this.
-export const SMS_MAX_LENGTH = 1600;
+import { truncateSms } from "./text";
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -89,10 +88,4 @@ export async function sendSms(
     throw new Error("Twilio send returned no message SID");
   }
   return { sid: payload.sid };
-}
-
-export function truncateSms(body: string) {
-  return body.length <= SMS_MAX_LENGTH
-    ? body
-    : `${body.slice(0, SMS_MAX_LENGTH - 1)}…`;
 }

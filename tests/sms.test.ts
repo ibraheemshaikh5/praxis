@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ConflictError } from "@/lib/daily-planner/errors";
 import { runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
-import { readSmsConfig, type SmsConfig } from "@/lib/sms/config";
+import {
+  readSendblueConfig,
+  readTwilioConfig,
+  type TwilioConfig,
+} from "@/lib/sms/config";
 import { FAILURE_REPLY, replyToText, screenInbound } from "@/lib/sms/inbound";
 import {
   plannerTools,
@@ -14,9 +18,9 @@ import {
 import {
   computeTwilioSignature,
   isValidTwilioSignature,
-  SMS_MAX_LENGTH,
-  truncateSms,
+  sendSms,
 } from "@/lib/sms/twilio";
+import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/text";
 
 const USER_ID = "00000000-0000-4000-8000-0000000000a1";
 const TASK_A = "00000000-0000-4000-8000-00000000000a";
@@ -37,8 +41,8 @@ const ENVIRONMENT = {
 
 const WEBHOOK_URL = "https://praxis.example.com/api/sms/inbound";
 
-function config(): SmsConfig {
-  const value = readSmsConfig(ENVIRONMENT);
+function config(): TwilioConfig {
+  const value = readTwilioConfig(ENVIRONMENT);
   if (!value) throw new Error("test configuration is invalid");
   return value;
 }
@@ -96,36 +100,65 @@ describe("twilio signatures", () => {
 
 describe("sms configuration", () => {
   it("is null unless every required variable is valid", () => {
-    expect(readSmsConfig({})).toBeNull();
+    expect(readTwilioConfig({})).toBeNull();
     expect(
-      readSmsConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
+      readTwilioConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
     ).toBeNull();
     expect(
-      readSmsConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
+      readTwilioConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
     ).toBeNull();
     expect(
-      readSmsConfig({ ...ENVIRONMENT, SMS_WEBHOOK_URL: "http://insecure" }),
+      readTwilioConfig({ ...ENVIRONMENT, SMS_WEBHOOK_URL: "http://insecure" }),
     ).toBeNull();
   });
 
   it("reads a complete environment", () => {
     expect(
-      readSmsConfig({
+      readTwilioConfig({
         ...ENVIRONMENT,
         SMS_WEBHOOK_URL: WEBHOOK_URL,
         SMS_AGENT_MODEL: "claude-sonnet-5-5",
       }),
     ).toEqual({
+      assistant: {
+        ownerPhone: "+15551234567",
+        ownerUserId: USER_ID,
+        model: "claude-sonnet-5-5",
+      },
       twilio: {
         accountSid: ENVIRONMENT.TWILIO_ACCOUNT_SID,
         authToken: "twilio-token",
         fromNumber: "+15550000000",
       },
-      ownerPhone: "+15551234567",
-      ownerUserId: USER_ID,
       webhookUrl: WEBHOOK_URL,
-      model: "claude-sonnet-5-5",
     });
+  });
+
+  it("reads Sendblue without any Twilio variables", () => {
+    const sendblue = {
+      ANTHROPIC_API_KEY: "test-key",
+      SMS_OWNER_PHONE: "+15551234567",
+      SMS_OWNER_USER_ID: USER_ID,
+      SENDBLUE_API_KEY: "sb-key",
+      SENDBLUE_API_SECRET: "sb-secret",
+      SENDBLUE_FROM_NUMBER: "+15550001111",
+    };
+    expect(readSendblueConfig(sendblue)).toEqual({
+      assistant: {
+        ownerPhone: "+15551234567",
+        ownerUserId: USER_ID,
+        model: undefined,
+      },
+      sendblue: {
+        apiKey: "sb-key",
+        apiSecret: "sb-secret",
+        fromNumber: "+15550001111",
+      },
+    });
+    expect(readTwilioConfig(sendblue)).toBeNull();
+    expect(
+      readSendblueConfig({ ...sendblue, SENDBLUE_FROM_NUMBER: "" }),
+    ).toBeNull();
   });
 });
 
@@ -626,6 +659,18 @@ describe("replying to a text", () => {
     return vi.fn<typeof fetch>(async () => Response.json({ sid: "SMout" }));
   }
 
+  function twilioSender(fetchImpl: typeof fetch) {
+    return async (body: string) => {
+      const { sid } = await sendSms(
+        config().twilio,
+        config().assistant.ownerPhone,
+        body,
+        fetchImpl,
+      );
+      return { providerSid: sid };
+    };
+  }
+
   it("texts the agent's reply to the owner and records it", async () => {
     const { planner } = fakePlanner();
     const fetchImpl = twilioFetch();
@@ -638,14 +683,14 @@ describe("replying to a text", () => {
     ]);
 
     await replyToText({
-      config: config(),
+      assistant: config().assistant,
       conversation,
       planner: planner as unknown as PlannerOperations,
       client,
       timeZone: "America/New_York",
       inboundId: "inbound-1",
       text: "what's left?",
-      fetchImpl,
+      send: twilioSender(fetchImpl),
     });
 
     const [url, init] = fetchImpl.mock.calls[0];
@@ -685,14 +730,14 @@ describe("replying to a text", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await replyToText({
-      config: config(),
+      assistant: config().assistant,
       conversation,
       planner: planner as unknown as PlannerOperations,
       client,
       timeZone: "America/New_York",
       inboundId: "inbound-2",
       text: "add milk",
-      fetchImpl,
+      send: twilioSender(fetchImpl),
     });
 
     expect(error).toHaveBeenCalled();

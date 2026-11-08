@@ -4,7 +4,7 @@ import type { Database } from "@/lib/db/client";
 import { smsMessages } from "@/lib/db/schema";
 
 import type { HistoryTurn } from "./agent";
-import { truncateSms } from "./twilio";
+import { truncateSms } from "./text";
 
 // Enough to resolve "that one" or "undo" a few texts later, without dragging a
 // stale conversation from yesterday into today's requests.
