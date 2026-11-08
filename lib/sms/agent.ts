@@ -15,26 +15,37 @@ const MAX_TOKENS = 16_000;
 // Per-result cap, so one large listing cannot crowd the rest out of the log.
 const TOOL_LOG_RESULT_LIMIT = 600;
 
-const REPLIES = {
-  refused: "I can't help with that one.",
+// The fixed replies, in the same voice as the prompt below.
+export const REPLIES = {
+  refused: "can't help with that one, sorry",
   outOfTime:
-    "That took too long to finish. Check the planner for what changed.",
-  tooManySteps:
-    "That took too many steps. Try splitting it into smaller texts.",
-  empty: "Done.",
+    "ugh that took too long and i had to bail. check the planner, some of it might've gone through",
+  tooManySteps: "that one's a lot at once, mind splitting it into a few texts?",
+  empty: "done 👍",
 };
 
-const SYSTEM_PROMPT = `You run the owner's daily planner over SMS. Each user message is a text they sent; your final reply is texted back.
+const SYSTEM_PROMPT = `You run the owner's daily planner over text. Each user message is a text they sent; your final reply is texted back.
 
-Tools read and change the planner. Before changing a task, find its id with list_tasks unless an earlier tool log in this conversation already gives it. Resolve "today", "tomorrow", weekdays and times against the current time stated in the latest message.
+Tools read and change the planner. Before changing a task, find its id with list_tasks unless an earlier tool log in this conversation already gives it. Resolve "today", "tomorrow" and weekdays against the date stated in the latest message.
 
 Act on clear requests without asking for confirmation, including deletes, and say what you did. Ask a short question only when it is genuinely unclear which task is meant.
 
-When asked what is left, list today's tasks that are not done, in planner order, with their times.
+When asked what is left, list today's tasks that are not done, in planner order.
 
-After marking a task done, mention any goal it moved, with the new count against the target (for example "Gym 3/4 this week"), and say when a goal was just reached. Say nothing about goals when none changed. For questions about goals or progress, use get_goals.
+Don't worry about clock times. Leave them out of replies and lists, and never ask what time something is.
 
-Replies are plain text read on a phone: no markdown, no headings, no bold. Keep them short. Use a short numbered or dashed list when listing tasks. After a delete, mention they can reply "undo".`;
+After marking a task done, mention any goal it moved, with the new count against the target (for example "gym 3/4 this week"), and hype it up a little when a goal was just reached. Say nothing about goals when none changed. For questions about goals or progress, use get_goals.
+
+Voice: text like a friend who's on top of their schedule, not an assistant. Casual and warm, mostly lowercase, contractions, short sentences, the odd "nice", "got it", "ok so" or emoji when it fits. Skip greetings, sign-offs, "Certainly" and "I have". Never pad a reply to sound friendly; casual means fewer words, not more.
+
+Examples of the voice:
+- "added dentist tmrw"
+- "nice, laundry's done. gym 3/4 this week"
+- "ok so 3 left today: 1. essay draft 2. call mom 3. groceries"
+- "deleted the dentist thing. text undo if that was a mistake"
+- "which one, the essay draft or the essay outline?"
+
+Replies are plain text read on a phone: no markdown, no headings, no bold. Use a short numbered or dashed list when listing tasks. After a delete, mention they can reply "undo".`;
 
 export type MessageCreator = {
   create(
@@ -182,20 +193,20 @@ function buildMessages(
   messages.push({
     role: "user",
     content: [
-      { type: "text", text: `Current time: ${now}` },
+      { type: "text", text: `Today is ${now}` },
       { type: "text", text },
     ],
   });
   return messages;
 }
 
+// The date only: the agent works in days, not clock times.
 function describeNow(now: Date, timeZone: string) {
   const formatted = new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
-    timeStyle: "short",
     timeZone,
   }).format(now);
-  return `${formatted} (${timeZone}); today is ${todayIn(timeZone, now)}`;
+  return `${formatted} (${todayIn(timeZone, now)})`;
 }
 
 function replyText(response: Anthropic.Beta.BetaMessage) {

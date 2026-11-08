@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConflictError } from "@/lib/daily-planner/errors";
-import { runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
+import { REPLIES, runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
 import { readAssistantConfig, type AssistantConfig } from "@/lib/sms/config";
 import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 import {
@@ -429,7 +429,7 @@ describe("sms agent", () => {
         content: [
           {
             type: "text",
-            text: "Current time: Sunday, November 8, 2026 at 9:30 AM (America/New_York); today is 2026-11-08",
+            text: "Today is Sunday, November 8, 2026 (2026-11-08)",
           },
           { type: "text", text: "done with laundry" },
         ],
@@ -527,8 +527,7 @@ describe("sms agent", () => {
         clock: () => 1_000,
       }),
     ).toEqual({
-      reply:
-        "That took too long to finish. Check the planner for what changed.",
+      reply: REPLIES.outOfTime,
       toolLog: null,
     });
     expect(client.create).not.toHaveBeenCalled();
@@ -568,9 +567,7 @@ describe("sms agent", () => {
       deadline: Date.now() + 50,
     });
 
-    expect(result.reply).toBe(
-      "That took too long to finish. Check the planner for what changed.",
-    );
+    expect(result.reply).toBe(REPLIES.outOfTime);
     expect(result.toolLog).toContain("set_task_done");
     expect(tasks.get(TASK_A)!.completedAt).not.toBeNull();
   });
@@ -586,7 +583,7 @@ describe("sms agent", () => {
       now,
     });
     expect(result).toEqual({
-      reply: "I can't help with that one.",
+      reply: REPLIES.refused,
       toolLog: null,
     });
   });

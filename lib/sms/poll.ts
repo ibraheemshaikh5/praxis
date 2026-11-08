@@ -5,7 +5,7 @@ import type { PlannerOperations } from "./tools";
 import type { ConversationStore } from "./types";
 
 export const FAILURE_REPLY =
-  "Something went wrong. Check the planner before trying again.";
+  "something broke on my end, sorry. check the planner before you try again";
 
 // How far back each poll looks. Overlapping windows are what make a missed or
 // failed poll harmless; texts already recorded are skipped. A text older than
