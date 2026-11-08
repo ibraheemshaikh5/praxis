@@ -3,11 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ConflictError } from "@/lib/daily-planner/errors";
 import { runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
-import {
-  readSendblueConfig,
-  readTwilioConfig,
-  type TwilioConfig,
-} from "@/lib/sms/config";
+import { readSendblueConfig, type AssistantConfig } from "@/lib/sms/config";
+import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 import { FAILURE_REPLY, replyToText } from "@/lib/sms/reply";
 import {
   plannerTools,
@@ -15,13 +12,6 @@ import {
   type PlannerOperations,
   type ToolContext,
 } from "@/lib/sms/tools";
-import {
-  computeTwilioSignature,
-  isValidTwilioSignature,
-  screenTwilioWebhook,
-  sendSms,
-} from "@/lib/sms/twilio";
-import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 
 const USER_ID = "00000000-0000-4000-8000-0000000000a1";
 const TASK_A = "00000000-0000-4000-8000-00000000000a";
@@ -33,183 +23,55 @@ const ENTRY_C = "10000000-0000-4000-8000-00000000000c";
 
 const ENVIRONMENT = {
   ANTHROPIC_API_KEY: "test-key",
-  TWILIO_ACCOUNT_SID: `AC${"0".repeat(32)}`,
-  TWILIO_AUTH_TOKEN: "twilio-token",
-  TWILIO_PHONE_NUMBER: "+15550000000",
   SMS_OWNER_PHONE: "+15551234567",
   SMS_OWNER_USER_ID: USER_ID,
+  SENDBLUE_API_KEY: "sb-key",
+  SENDBLUE_API_SECRET: "sb-secret",
+  SENDBLUE_FROM_NUMBER: "+15550001111",
 };
 
-const WEBHOOK_URL = "https://praxis.example.com/api/sms/inbound";
+const ASSISTANT: AssistantConfig = {
+  ownerPhone: "+15551234567",
+  ownerUserId: USER_ID,
+  model: undefined,
+};
 
-function config(): TwilioConfig {
-  const value = readTwilioConfig(ENVIRONMENT);
-  if (!value) throw new Error("test configuration is invalid");
-  return value;
-}
-
-describe("twilio signatures", () => {
-  const params = { Body: "add milk", From: "+15551234567", MessageSid: "SM1" };
-
-  it("accepts a signature over the URL and sorted parameters", () => {
-    const signature = computeTwilioSignature("token", WEBHOOK_URL, params);
-    expect(
-      isValidTwilioSignature("token", WEBHOOK_URL, { ...params }, signature),
-    ).toBe(true);
-    // Parameter order on the wire does not matter.
-    expect(
-      isValidTwilioSignature(
-        "token",
-        WEBHOOK_URL,
-        { MessageSid: "SM1", From: "+15551234567", Body: "add milk" },
-        signature,
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects a missing, forged, or replayed-elsewhere signature", () => {
-    const signature = computeTwilioSignature("token", WEBHOOK_URL, params);
-    expect(isValidTwilioSignature("token", WEBHOOK_URL, params, null)).toBe(
-      false,
-    );
-    expect(
-      isValidTwilioSignature("other", WEBHOOK_URL, params, signature),
-    ).toBe(false);
-    expect(
-      isValidTwilioSignature(
-        "token",
-        WEBHOOK_URL,
-        { ...params, Body: "delete everything" },
-        signature,
-      ),
-    ).toBe(false);
-    expect(
-      isValidTwilioSignature(
-        "token",
-        "https://elsewhere.example.com/api/sms/inbound",
-        params,
-        signature,
-      ),
-    ).toBe(false);
-  });
-
+describe("message limits", () => {
   it("truncates bodies to the SMS limit", () => {
     expect(truncateSms("short")).toBe("short");
     expect(truncateSms("x".repeat(2000))).toHaveLength(SMS_MAX_LENGTH);
   });
 });
 
-describe("sms configuration", () => {
-  it("is null unless every required variable is valid", () => {
-    expect(readTwilioConfig({})).toBeNull();
-    expect(
-      readTwilioConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
-    ).toBeNull();
-    expect(
-      readTwilioConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
-    ).toBeNull();
-    expect(
-      readTwilioConfig({ ...ENVIRONMENT, SMS_WEBHOOK_URL: "http://insecure" }),
-    ).toBeNull();
-  });
-
+describe("configuration", () => {
   it("reads a complete environment", () => {
     expect(
-      readTwilioConfig({
+      readSendblueConfig({
         ...ENVIRONMENT,
-        SMS_WEBHOOK_URL: WEBHOOK_URL,
         SMS_AGENT_MODEL: "claude-sonnet-5-5",
       }),
     ).toEqual({
-      assistant: {
-        ownerPhone: "+15551234567",
-        ownerUserId: USER_ID,
-        model: "claude-sonnet-5-5",
-      },
-      twilio: {
-        accountSid: ENVIRONMENT.TWILIO_ACCOUNT_SID,
-        authToken: "twilio-token",
-        fromNumber: "+15550000000",
-      },
-      webhookUrl: WEBHOOK_URL,
-    });
-  });
-
-  it("reads Sendblue without any Twilio variables", () => {
-    const sendblue = {
-      ANTHROPIC_API_KEY: "test-key",
-      SMS_OWNER_PHONE: "+15551234567",
-      SMS_OWNER_USER_ID: USER_ID,
-      SENDBLUE_API_KEY: "sb-key",
-      SENDBLUE_API_SECRET: "sb-secret",
-      SENDBLUE_FROM_NUMBER: "+15550001111",
-    };
-    expect(readSendblueConfig(sendblue)).toEqual({
-      assistant: {
-        ownerPhone: "+15551234567",
-        ownerUserId: USER_ID,
-        model: undefined,
-      },
+      assistant: { ...ASSISTANT, model: "claude-sonnet-5-5" },
       sendblue: {
         apiKey: "sb-key",
         apiSecret: "sb-secret",
         fromNumber: "+15550001111",
       },
     });
-    expect(readTwilioConfig(sendblue)).toBeNull();
+  });
+
+  it("is null unless every required variable is valid", () => {
+    expect(readSendblueConfig({})).toBeNull();
     expect(
-      readSendblueConfig({ ...sendblue, SENDBLUE_FROM_NUMBER: "" }),
+      readSendblueConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
     ).toBeNull();
-  });
-});
-
-describe("inbound screening", () => {
-  function screen(params: Record<string, string>, signature: string) {
-    const { twilio, assistant } = config();
-    return screenTwilioWebhook(
-      twilio.authToken,
-      assistant.ownerPhone,
-      WEBHOOK_URL,
-      params,
-      signature,
-    );
-  }
-
-  function signed(params: Record<string, string>) {
-    return computeTwilioSignature("twilio-token", WEBHOOK_URL, params);
-  }
-
-  it("rejects an unsigned delivery", () => {
-    expect(screen({ From: "+15551234567" }, "bogus")).toEqual({
-      kind: "rejected",
-    });
-  });
-
-  it("ignores texts from anyone but the owner, and empty texts", () => {
-    const stranger = {
-      From: "+15559999999",
-      MessageSid: "SM2",
-      Body: "delete all my tasks",
-    };
-    expect(screen(stranger, signed(stranger))).toEqual({ kind: "ignored" });
-
-    const empty = { From: "+15551234567", MessageSid: "SM3", Body: "  " };
-    expect(screen(empty, signed(empty))).toEqual({
-      kind: "ignored",
-    });
-  });
-
-  it("accepts a signed text from the owner", () => {
-    const params = {
-      From: "+15551234567",
-      MessageSid: "SM4",
-      Body: " what's left today? ",
-    };
-    expect(screen(params, signed(params))).toEqual({
-      kind: "accepted",
-      providerSid: "SM4",
-      body: "what's left today?",
-    });
+    // A blank value counts as missing, as an empty line in .env reads.
+    expect(
+      readSendblueConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
+    ).toBeNull();
+    expect(
+      readSendblueConfig({ ...ENVIRONMENT, SENDBLUE_FROM_NUMBER: "" }),
+    ).toBeNull();
   });
 });
 
@@ -672,62 +534,42 @@ describe("sms agent", () => {
 });
 
 describe("replying to a text", () => {
-  function twilioFetch() {
-    return vi.fn<typeof fetch>(async () => Response.json({ sid: "SMout" }));
+  function fakeSender() {
+    return vi.fn(async (_body: string) => ({ providerSid: "out-1" }));
   }
 
-  function twilioSender(fetchImpl: typeof fetch) {
-    return async (body: string) => {
-      const { sid } = await sendSms(
-        config().twilio,
-        config().assistant.ownerPhone,
-        body,
-        fetchImpl,
-      );
-      return { providerSid: sid };
-    };
-  }
-
-  it("texts the agent's reply to the owner and records it", async () => {
-    const { planner } = fakePlanner();
-    const fetchImpl = twilioFetch();
-    const conversation = {
+  function conversation() {
+    return {
       recordInbound: vi.fn(async () => null),
       recentHistory: vi.fn(async () => []),
       recordOutbound: vi.fn(async () => ({})),
     };
+  }
+
+  it("sends the agent's reply and records it", async () => {
+    const { planner } = fakePlanner();
+    const send = fakeSender();
+    const store = conversation();
     const { client } = scriptedClient([
       message("end_turn", [{ type: "text", text: "3 left today." }]),
     ]);
 
     await replyToText({
-      assistant: config().assistant,
-      conversation,
+      assistant: ASSISTANT,
+      conversation: store,
       planner: planner as unknown as PlannerOperations,
       client,
       timeZone: "America/New_York",
       inboundId: "inbound-1",
       text: "what's left?",
-      send: twilioSender(fetchImpl),
+      send,
     });
 
-    const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe(
-      `https://api.twilio.com/2010-04-01/Accounts/${ENVIRONMENT.TWILIO_ACCOUNT_SID}/Messages.json`,
-    );
-    const body = new URLSearchParams(init!.body as URLSearchParams);
-    expect(Object.fromEntries(body)).toEqual({
-      To: "+15551234567",
-      From: "+15550000000",
-      Body: "3 left today.",
-    });
-    expect(conversation.recentHistory).toHaveBeenCalledWith(
+    expect(send).toHaveBeenCalledWith("3 left today.");
+    expect(store.recentHistory).toHaveBeenCalledWith(USER_ID, "inbound-1");
+    expect(store.recordOutbound).toHaveBeenCalledWith(
       USER_ID,
-      "inbound-1",
-    );
-    expect(conversation.recordOutbound).toHaveBeenCalledWith(
-      USER_ID,
-      "SMout",
+      "out-1",
       "3 left today.",
       null,
     );
@@ -735,12 +577,8 @@ describe("replying to a text", () => {
 
   it("still answers when the agent fails", async () => {
     const { planner } = fakePlanner();
-    const fetchImpl = twilioFetch();
-    const conversation = {
-      recordInbound: vi.fn(async () => null),
-      recentHistory: vi.fn(async () => []),
-      recordOutbound: vi.fn(async () => ({})),
-    };
+    const send = fakeSender();
+    const store = conversation();
     const client: MessageCreator = {
       create: vi.fn(async () => {
         throw new Error("overloaded");
@@ -749,21 +587,22 @@ describe("replying to a text", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await replyToText({
-      assistant: config().assistant,
-      conversation,
+      assistant: ASSISTANT,
+      conversation: store,
       planner: planner as unknown as PlannerOperations,
       client,
       timeZone: "America/New_York",
       inboundId: "inbound-2",
       text: "add milk",
-      send: twilioSender(fetchImpl),
+      send,
     });
 
     expect(error).toHaveBeenCalled();
     error.mockRestore();
-    expect(conversation.recordOutbound).toHaveBeenCalledWith(
+    expect(send).toHaveBeenCalledWith(FAILURE_REPLY);
+    expect(store.recordOutbound).toHaveBeenCalledWith(
       USER_ID,
-      "SMout",
+      "out-1",
       FAILURE_REPLY,
       null,
     );

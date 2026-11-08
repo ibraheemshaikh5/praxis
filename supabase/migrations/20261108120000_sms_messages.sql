@@ -4,8 +4,8 @@ create table public.sms_messages (
   id uuid primary key default gen_random_uuid() not null,
   user_id uuid not null,
   direction public.sms_direction not null,
-  -- Twilio's MessageSid. Twilio retries a webhook it considers failed, so the
-  -- unique key is what keeps a retried text from being acted on twice.
+  -- Sendblue's message_handle. Polls overlap, so the unique key is what keeps
+  -- a text seen by two polls from being acted on twice.
   provider_sid text,
   body text not null,
   -- What an outbound reply changed, as the tool calls and their results. Fed

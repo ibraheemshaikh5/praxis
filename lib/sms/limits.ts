@@ -1,5 +1,5 @@
-// Twilio rejects a message body longer than this, and the conversation table
-// stores no more. iMessage allows far longer, but a planner reply never needs it.
+// The conversation table stores no more than this, and SMS fallback splits
+// anything longer. iMessage allows far more, but a planner reply never needs it.
 export const SMS_MAX_LENGTH = 1600;
 
 // Matches the sms_messages.tool_log check constraint.
