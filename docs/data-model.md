@@ -159,3 +159,22 @@ Decisions:
 - `document`: `jsonb`, up to 4 MiB serialized
 - `created_at`
 - `updated_at`
+
+## SMS assistant
+
+Decisions:
+
+- Texts and replies are server-only: row level security is on with no policy,
+  and `anon` and `authenticated` hold no grants.
+- `provider_sid` is unique, which is what makes a text seen by two
+  overlapping polls a no-op. See [sms-assistant.md](sms-assistant.md).
+
+### sms_messages
+
+- `id`
+- `user_id`
+- `direction`: `inbound` or `outbound`
+- `provider_sid`: Sendblue `message_handle`, unique
+- `body`: up to 1,600 characters
+- `tool_log`: on outbound replies, the tool calls the reply made
+- `created_at`
