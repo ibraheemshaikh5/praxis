@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run --exclude \"tests/*.integration.test.ts\"",
-    "test:integration": "tsx scripts/require-test-database.ts && vitest run tests/applications.integration.test.ts tests/daily-planner.integration.test.ts tests/metrics.integration.test.ts",
+    "test:integration": "tsx scripts/require-test-database.ts && vitest run tests/applications.integration.test.ts tests/daily-planner.integration.test.ts tests/metrics.integration.test.ts tests/sms.integration.test.ts",
     "test:coverage": "vitest run --coverage",
     "check:migrations": "node scripts/check-migration-versions.mjs",
     "db:generate": "drizzle-kit generate",
@@ -29,6 +29,7 @@
     "supabase:stop": "supabase stop"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@base-ui/react": "^1.6.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
