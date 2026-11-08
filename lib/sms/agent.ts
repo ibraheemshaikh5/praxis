@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
+import { truncateToolLog } from "./limits";
 import { plannerTools, runPlannerTool, type ToolContext } from "./tools";
 
 export const DEFAULT_SMS_MODEL = "claude-opus-5-5";
@@ -7,7 +8,7 @@ export const DEFAULT_SMS_MODEL = "claude-opus-5-5";
 // Each round is one model call; a text that adds, moves and reorders a few
 // tasks needs four or five. The cap only stops a runaway loop.
 const MAX_ROUNDS = 12;
-const TOOL_LOG_LIMIT = 8000;
+// Per-result cap, so one large listing cannot crowd the rest out of the log.
 const TOOL_LOG_RESULT_LIMIT = 600;
 
 const SYSTEM_PROMPT = `You run the owner's daily planner over SMS. Each user message is a text they sent; your final reply is texted back.
@@ -176,9 +177,5 @@ function replyText(response: Anthropic.Beta.BetaMessage) {
 }
 
 function joinLog(log: string[]) {
-  if (log.length === 0) return null;
-  const joined = log.join("\n");
-  return joined.length <= TOOL_LOG_LIMIT
-    ? joined
-    : joined.slice(joined.length - TOOL_LOG_LIMIT);
+  return log.length === 0 ? null : truncateToolLog(log.join("\n"));
 }

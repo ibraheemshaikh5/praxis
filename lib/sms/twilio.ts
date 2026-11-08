@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { truncateSms } from "./text";
+import { truncateSms } from "./limits";
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
