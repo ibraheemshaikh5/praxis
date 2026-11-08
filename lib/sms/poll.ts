@@ -1,5 +1,5 @@
 import type { MessageCreator } from "./agent";
-import type { SendblueConfig } from "./config";
+import type { AssistantConfig } from "./config";
 import { replyToText } from "./reply";
 import type { SendblueLine } from "./sendblue";
 import type { PlannerOperations } from "./tools";
@@ -20,7 +20,7 @@ const MAX_TEXTS_PER_POLL = 5;
  * overlapping poll that sees the same text finds it recorded and skips it.
  */
 export async function pollSendblue(deps: {
-  config: SendblueConfig;
+  config: AssistantConfig;
   line: SendblueLine;
   conversation: ConversationStore;
   planner: PlannerOperations;
@@ -29,7 +29,7 @@ export async function pollSendblue(deps: {
   now?: Date;
 }) {
   const { conversation, line } = deps;
-  const { assistant } = deps.config;
+  const { config } = deps;
   const now = deps.now ?? new Date();
 
   const texts = await line.listInboundTexts(
@@ -41,7 +41,7 @@ export async function pollSendblue(deps: {
     if (answered >= MAX_TEXTS_PER_POLL) break;
 
     const inbound = await conversation.recordInbound(
-      assistant.ownerUserId,
+      config.ownerUserId,
       text.handle,
       text.body,
     );
@@ -50,7 +50,7 @@ export async function pollSendblue(deps: {
     answered += 1;
     try {
       await replyToText({
-        assistant,
+        assistant: config,
         conversation,
         planner: deps.planner,
         client: deps.client,
