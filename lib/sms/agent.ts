@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
 import { truncateToolLog } from "./limits";
+import { todayIn } from "./local-time";
 import type { HistoryTurn } from "./types";
 import { plannerTools, runPlannerTool, type ToolContext } from "./tools";
 
@@ -157,8 +158,7 @@ function describeNow(now: Date, timeZone: string) {
     timeStyle: "short",
     timeZone,
   }).format(now);
-  const isoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(now);
-  return `${formatted} (${timeZone}); today is ${isoDate}`;
+  return `${formatted} (${timeZone}); today is ${todayIn(timeZone, now)}`;
 }
 
 function replyText(response: Anthropic.Beta.BetaMessage) {

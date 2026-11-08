@@ -97,7 +97,7 @@ export const GOAL_SETTLE_DELAYS_MS = [0, 400, 1000];
 export async function settledGoalChanges(
   read: () => Promise<MetricsResult>,
   before: MetricsResult,
-  sleep: (ms: number) => Promise<void>,
+  sleep: (ms: number) => Promise<void> = wait,
 ): Promise<GoalChange[]> {
   for (const delay of GOAL_SETTLE_DELAYS_MS) {
     if (delay > 0) await sleep(delay);
@@ -105,4 +105,8 @@ export async function settledGoalChanges(
     if (changes.length > 0) return changes;
   }
   return [];
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
