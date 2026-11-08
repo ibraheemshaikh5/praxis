@@ -323,19 +323,27 @@ async function setTaskDone(
   const current = await planner.findTask(userId, input.task_id);
   if (!current || current.deletedAt) throw new NotFoundError();
 
-  const alreadyThere = (current.completedAt !== null) === input.done;
+  // Writing again would move completed_at to now, and a completed task's goal
+  // credit with it: repeating "done" for yesterday's task must change nothing.
+  if ((current.completedAt !== null) === input.done) {
+    return {
+      task_id: current.id,
+      title: current.title,
+      done: input.done,
+      unchanged: true,
+      goal_changes: [],
+    };
+  }
+
   const anchor =
     (await planner.findActivePlannerDate(userId, input.task_id)) ??
     (!input.done && current.completedAt
       ? dateIn(current.completedAt, context.timeZone)
       : today(context));
 
-  // Nothing to compare when the task is already in that state or there are
-  // no goals: skip the reads and the wait.
-  const before = alreadyThere
-    ? null
-    : await planner.listMetrics(userId, { anchor });
-  const tracked = before !== null && before.metrics.length > 0;
+  // With no goals there is nothing to compare: skip the reads and the wait.
+  const before = await planner.listMetrics(userId, { anchor });
+  const tracked = before.metrics.length > 0;
 
   const task = await withCurrentVersion(context, input.task_id, (version) =>
     planner.setCompletion(userId, input.task_id, {

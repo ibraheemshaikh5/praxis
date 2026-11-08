@@ -234,7 +234,12 @@ describe("set_task_done goal tracking", () => {
       done: true,
     });
     expect(alreadyDone.planner.listMetrics).not.toHaveBeenCalled();
-    expect(JSON.parse(outcome.content).goal_changes).toEqual([]);
+    // Rewriting would move completed_at, and the task's goal credit, to now.
+    expect(alreadyDone.planner.setCompletion).not.toHaveBeenCalled();
+    expect(JSON.parse(outcome.content)).toMatchObject({
+      unchanged: true,
+      goal_changes: [],
+    });
   });
 
   it("answers get_goals for today by default, or a given date", async () => {
