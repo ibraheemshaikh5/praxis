@@ -9,8 +9,8 @@ import {
 import { pollSendblue } from "@/lib/sms/poll";
 import { createPollDeps } from "@/lib/sms/runtime";
 
-// A poll answers up to a few texts in turn, each one a Claude round trip.
-// This bounds the background work started below.
+// Must equal POLL_MAX_DURATION_MS: the poll fits its work inside this. Next.js
+// reads route config statically, so it cannot import the constant.
 export const maxDuration = 60;
 
 /**

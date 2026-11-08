@@ -16,8 +16,17 @@ export const POLL_LOOKBACK_MS = 15 * 60 * 1000;
 // this bounds how long it runs. Anything past it waits for the next poll.
 const MAX_TEXTS_PER_POLL = 5;
 
-// Outlasts the poll route's 60-second maxDuration, so a poll the platform
-// stops mid-answer frees the lease for the poll after next at the latest.
+// The poll route's maxDuration. Work is fitted inside it so the platform never
+// stops a poll between recording a text and saving its reply:
+//   0-30s   new texts may be started; later ones wait for the next poll
+//   by 45s  the agent is done, cut off at its deadline if need be
+//   45-60s  sending the reply (Sendblue times out at 10s) and saving it
+export const POLL_MAX_DURATION_MS = 60_000;
+const START_CUTOFF_MS = 30_000;
+const AGENT_DEADLINE_MS = 45_000;
+
+// Outlasts maxDuration, so a poll the platform stops anyway frees the lease
+// for the poll after next at the latest.
 export const POLL_LEASE_MS = 90_000;
 
 export type PollDeps = {
@@ -35,9 +44,13 @@ export type PollDeps = {
  * they were sent, holding the owner's poll lease while it does. Recording a
  * text before answering it is the claim, so no text is answered twice.
  */
-export async function pollSendblue(deps: PollDeps, now = new Date()) {
+export async function pollSendblue(
+  deps: PollDeps,
+  clock: () => number = Date.now,
+) {
+  const startedAt = clock();
   const texts = await deps.line.listInboundTexts(
-    new Date(now.getTime() - POLL_LOOKBACK_MS),
+    new Date(startedAt - POLL_LOOKBACK_MS),
   );
 
   if (texts.length === 0) return { seen: 0, answered: 0 };
@@ -53,6 +66,9 @@ export async function pollSendblue(deps: PollDeps, now = new Date()) {
   try {
     for (const text of texts) {
       if (answered >= MAX_TEXTS_PER_POLL) break;
+      // Unrecorded, so the next poll picks it up; recording it now could leave
+      // it claimed with too little time left to answer.
+      if (clock() - startedAt >= START_CUTOFF_MS) break;
 
       const inbound = await deps.conversation.recordInbound(
         userId,
@@ -63,7 +79,11 @@ export async function pollSendblue(deps: PollDeps, now = new Date()) {
 
       answered += 1;
       try {
-        await answer(deps, { id: inbound.id, text: text.body });
+        await answer(
+          deps,
+          { id: inbound.id, text: text.body },
+          { deadline: startedAt + AGENT_DEADLINE_MS, clock },
+        );
       } catch (error) {
         // The text stays recorded, so it is not answered twice; the next text
         // in this poll still gets its turn.
@@ -81,7 +101,11 @@ export async function pollSendblue(deps: PollDeps, now = new Date()) {
  * Runs the agent on a recorded text and sends the reply. When the agent fails
  * the owner still gets an answer, so a text is never met with silence.
  */
-async function answer(deps: PollDeps, inbound: { id: string; text: string }) {
+async function answer(
+  deps: PollDeps,
+  inbound: { id: string; text: string },
+  timing: { deadline: number; clock: () => number },
+) {
   const { config, conversation } = deps;
   const userId = config.ownerUserId;
 
@@ -98,6 +122,7 @@ async function answer(deps: PollDeps, inbound: { id: string; text: string }) {
       context: { planner: deps.planner, userId, timeZone },
       history,
       text: inbound.text,
+      ...timing,
     }));
   } catch (error) {
     console.error("SMS agent failed", error);

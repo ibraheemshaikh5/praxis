@@ -5,8 +5,9 @@ import { z } from "zod";
 import { truncateSms } from "./limits";
 
 const API_BASE = "https://api.sendblue.com";
-// Sendblue not answering by then is down; the poll logs and the next one retries.
-const REQUEST_TIMEOUT_MS = 15_000;
+// Sendblue not answering by then is down. Sending a reply must fit in the
+// poll's last 15 seconds (see POLL_MAX_DURATION_MS), so this stays under it.
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export type SendblueCredentials = {
   apiKey: string;

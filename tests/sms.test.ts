@@ -513,6 +513,68 @@ describe("sms agent", () => {
     ]);
   });
 
+  it("replies that time ran out once the deadline has passed", async () => {
+    const { context } = fakePlanner();
+    const { client } = scriptedClient([]);
+    expect(
+      await runSmsAgent({
+        client,
+        context,
+        history: [],
+        text: "add milk",
+        now,
+        deadline: 1_000,
+        clock: () => 1_000,
+      }),
+    ).toEqual({
+      reply:
+        "That took too long to finish. Check the planner for what changed.",
+      toolLog: null,
+    });
+    expect(client.create).not.toHaveBeenCalled();
+  });
+
+  it("cuts a call off at the deadline and keeps the log of what changed", async () => {
+    const { context, tasks } = fakePlanner();
+    let calls = 0;
+    const client: MessageCreator = {
+      create: vi.fn(async (_params, options) => {
+        calls += 1;
+        if (calls === 1) {
+          return message("tool_use", [
+            {
+              type: "tool_use",
+              id: "toolu_1",
+              name: "set_task_done",
+              input: { task_id: TASK_A, done: true },
+            },
+          ]);
+        }
+        // The second call hangs until its signal fires.
+        return new Promise<never>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        });
+      }),
+    };
+
+    const result = await runSmsAgent({
+      client,
+      context,
+      history: [],
+      text: "done with laundry, then something slow",
+      now,
+      deadline: Date.now() + 50,
+    });
+
+    expect(result.reply).toBe(
+      "That took too long to finish. Check the planner for what changed.",
+    );
+    expect(result.toolLog).toContain("set_task_done");
+    expect(tasks.get(TASK_A)!.completedAt).not.toBeNull();
+  });
+
   it("answers a refusal without reading its content", async () => {
     const { context } = fakePlanner();
     const { client } = scriptedClient([message("refusal", [])]);

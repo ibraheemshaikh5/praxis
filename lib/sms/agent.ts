@@ -17,6 +17,8 @@ const TOOL_LOG_RESULT_LIMIT = 600;
 
 const REPLIES = {
   refused: "I can't help with that one.",
+  outOfTime:
+    "That took too long to finish. Check the planner for what changed.",
   tooManySteps:
     "That took too many steps. Try splitting it into smaller texts.",
   empty: "Done.",
@@ -37,6 +39,7 @@ Replies are plain text read on a phone: no markdown, no headings, no bold. Keep 
 export type MessageCreator = {
   create(
     params: Anthropic.Beta.MessageCreateParamsNonStreaming,
+    options?: { signal?: AbortSignal },
   ): Promise<Anthropic.Beta.BetaMessage>;
 };
 
@@ -48,6 +51,10 @@ export type AgentReply = {
 /**
  * Answers one text: calls Claude with the planner tools, runs the tools it
  * asks for, and returns its final reply along with a log of what it changed.
+ *
+ * With a deadline, each call is cut off when it arrives, retries included,
+ * and the reply says time ran out. The log is kept either way, so changes
+ * already made can still be undone by a later text.
  */
 export async function runSmsAgent(options: {
   client: MessageCreator;
@@ -56,7 +63,12 @@ export async function runSmsAgent(options: {
   history: HistoryTurn[];
   text: string;
   now?: Date;
+  /** Epoch milliseconds by which the agent must have replied. */
+  deadline?: number;
+  clock?: () => number;
 }): Promise<AgentReply> {
+  const clock = options.clock ?? Date.now;
+  const deadline = options.deadline ?? Number.POSITIVE_INFINITY;
   const { client, context } = options;
   const messages = buildMessages(
     options.history,
@@ -82,7 +94,19 @@ export async function runSmsAgent(options: {
   const finish = (reply: string) => ({ reply, toolLog: joinLog(log) });
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
-    const response = await client.create({ ...request, messages });
+    const remaining = deadline - clock();
+    if (remaining <= 0) return finish(REPLIES.outOfTime);
+
+    let response: Anthropic.Beta.BetaMessage;
+    const signal = Number.isFinite(remaining)
+      ? AbortSignal.timeout(remaining)
+      : undefined;
+    try {
+      response = await client.create({ ...request, messages }, { signal });
+    } catch (error) {
+      if (signal?.aborted) return finish(REPLIES.outOfTime);
+      throw error;
+    }
 
     if (response.stop_reason === "refusal") return finish(REPLIES.refused);
 
