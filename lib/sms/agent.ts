@@ -10,8 +10,17 @@ export const DEFAULT_SMS_MODEL = "claude-opus-5-5";
 // Each round is one model call; a text that adds, moves and reorders a few
 // tasks needs four or five. The cap only stops a runaway loop.
 const MAX_ROUNDS = 12;
+// Ample for a short reply and the thinking before it; replies are capped later.
+const MAX_TOKENS = 16_000;
 // Per-result cap, so one large listing cannot crowd the rest out of the log.
 const TOOL_LOG_RESULT_LIMIT = 600;
+
+const REPLIES = {
+  refused: "I can't help with that one.",
+  tooManySteps:
+    "That took too many steps. Try splitting it into smaller texts.",
+  empty: "Done.",
+};
 
 const SYSTEM_PROMPT = `You run the owner's daily planner over SMS. Each user message is a text they sent; your final reply is texted back.
 
@@ -36,6 +45,10 @@ export type AgentReply = {
   toolLog: string | null;
 };
 
+/**
+ * Answers one text: calls Claude with the planner tools, runs the tools it
+ * asks for, and returns its final reply along with a log of what it changed.
+ */
 export async function runSmsAgent(options: {
   client: MessageCreator;
   model?: string;
@@ -50,74 +63,74 @@ export async function runSmsAgent(options: {
     options.text,
     describeNow(options.now ?? new Date(), context.timeZone),
   );
+  // Everything but the messages is fixed, which keeps the cached prefix stable.
+  const request = {
+    model: options.model ?? DEFAULT_SMS_MODEL,
+    max_tokens: MAX_TOKENS,
+    // A text is a quick exchange, so the lowest effort keeps replies fast.
+    output_config: { effort: "low" },
+    // Re-runs a request the model's safety classifier declines on the
+    // fallback Anthropic recommends for that kind of decline.
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    cache_control: { type: "ephemeral" },
+    system: SYSTEM_PROMPT,
+    tools: plannerTools,
+  } satisfies Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, "messages">;
+
   const log: string[] = [];
+  const finish = (reply: string) => ({ reply, toolLog: joinLog(log) });
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
-    const response = await client.create({
-      model: options.model ?? DEFAULT_SMS_MODEL,
-      max_tokens: 16000,
-      // A text is a quick exchange, so the lowest effort keeps replies fast.
-      output_config: { effort: "low" },
-      // Re-runs a request the model's safety classifier declines on the
-      // fallback Anthropic recommends for that kind of decline.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      cache_control: { type: "ephemeral" },
-      system: SYSTEM_PROMPT,
-      tools: plannerTools,
-      messages,
-    });
+    const response = await client.create({ ...request, messages });
 
-    if (response.stop_reason === "refusal") {
-      return { reply: "I can't help with that one.", toolLog: joinLog(log) };
-    }
-
-    const toolUses = response.content.filter(
-      (block): block is Anthropic.Beta.BetaToolUseBlock =>
-        block.type === "tool_use",
-    );
+    if (response.stop_reason === "refusal") return finish(REPLIES.refused);
 
     if (response.stop_reason === "pause_turn") {
       messages.push({ role: "assistant", content: response.content });
       continue;
     }
 
+    const toolUses = response.content.filter(
+      (block): block is Anthropic.Beta.BetaToolUseBlock =>
+        block.type === "tool_use",
+    );
     if (response.stop_reason !== "tool_use" || toolUses.length === 0) {
-      return {
-        reply: replyText(response) || "Done.",
-        toolLog: joinLog(log),
-      };
+      return finish(replyText(response) || REPLIES.empty);
     }
 
     messages.push({ role: "assistant", content: response.content });
-
-    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
-    for (const toolUse of toolUses) {
-      const outcome = await runPlannerTool(
-        context,
-        toolUse.name,
-        toolUse.input,
-      );
-      log.push(
-        `${toolUse.name} ${JSON.stringify(toolUse.input)} -> ${
-          outcome.isError ? "error: " : ""
-        }${outcome.content.slice(0, TOOL_LOG_RESULT_LIMIT)}`,
-      );
-      results.push({
-        type: "tool_result",
-        tool_use_id: toolUse.id,
-        content: outcome.content,
-        ...(outcome.isError ? { is_error: true } : {}),
-      });
-    }
     // Every result from one assistant turn goes back in a single message.
-    messages.push({ role: "user", content: results });
+    messages.push({
+      role: "user",
+      content: await runTools(context, toolUses, log),
+    });
   }
 
-  return {
-    reply: "That took too many steps. Try splitting it into smaller texts.",
-    toolLog: joinLog(log),
-  };
+  return finish(REPLIES.tooManySteps);
+}
+
+async function runTools(
+  context: ToolContext,
+  toolUses: Anthropic.Beta.BetaToolUseBlock[],
+  log: string[],
+): Promise<Anthropic.Beta.BetaToolResultBlockParam[]> {
+  const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+  for (const toolUse of toolUses) {
+    const outcome = await runPlannerTool(context, toolUse.name, toolUse.input);
+    log.push(
+      `${toolUse.name} ${JSON.stringify(toolUse.input)} -> ${
+        outcome.isError ? "error: " : ""
+      }${outcome.content.slice(0, TOOL_LOG_RESULT_LIMIT)}`,
+    );
+    results.push({
+      type: "tool_result",
+      tool_use_id: toolUse.id,
+      content: outcome.content,
+      ...(outcome.isError ? { is_error: true } : {}),
+    });
+  }
+  return results;
 }
 
 function buildMessages(
