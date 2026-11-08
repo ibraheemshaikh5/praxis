@@ -14,10 +14,9 @@ import {
   ValidationError,
 } from "@/lib/daily-planner/errors";
 import type { DailyPlannerService } from "@/lib/daily-planner/service";
-import { calendarDateInTimeZone } from "@/lib/daily-planner/time";
-import { minutesInTimeZone, zonedDateTimeToIso } from "@/lib/planner/timeline";
 
 import { settledGoalChanges, summarizeGoals } from "./goals";
+import { clockTimeIn, dateIn, timeBlockOn, todayIn } from "./local-time";
 
 /** The planner operations the SMS agent is allowed to perform. */
 export type PlannerOperations = Pick<
@@ -147,7 +146,7 @@ const TOOL_SPECS: Record<string, ToolSpec<unknown>> = {
         title: input.title,
         notes: input.notes,
         plannerDate: input.date ?? null,
-        ...timeBlock(context, input.date ?? null, input),
+        ...timeBlockOn(input.date ?? null, input, context.timeZone),
       });
       const { task, entry } = await context.planner.createTask(
         context.userId,
@@ -207,7 +206,7 @@ const TOOL_SPECS: Record<string, ToolSpec<unknown>> = {
       withCurrentVersion(context, input.task_id, async (version) => {
         const body = scheduleTaskSchema.parse({
           plannerDate: input.date,
-          ...timeBlock(context, input.date, input),
+          ...timeBlockOn(input.date, input, context.timeZone),
           expectedVersion: version,
         });
         const { task, entry } = await context.planner.scheduleTask(
@@ -328,7 +327,7 @@ async function setTaskDone(
   const anchor =
     (await planner.findActivePlannerDate(userId, input.task_id)) ??
     (!input.done && current.completedAt
-      ? calendarDateInTimeZone(current.completedAt, context.timeZone)
+      ? dateIn(current.completedAt, context.timeZone)
       : today(context));
 
   // Nothing to compare when the task is already in that state or there are
@@ -349,7 +348,7 @@ async function setTaskDone(
     ? await settledGoalChanges(
         () => planner.listMetrics(userId, { anchor }),
         before,
-        context.sleep ?? wait,
+        context.sleep,
       )
     : [];
 
@@ -384,10 +383,10 @@ async function listTasks(
       title: entry.task.title,
       done: entry.task.completedAt !== null,
       ...(entry.startsAt
-        ? { start: localTime(entry.startsAt, context.timeZone) }
+        ? { start: clockTimeIn(entry.startsAt, context.timeZone) }
         : {}),
       ...(entry.endsAt
-        ? { end: localTime(entry.endsAt, context.timeZone) }
+        ? { end: clockTimeIn(entry.endsAt, context.timeZone) }
         : {}),
       ...(entry.task.notes ? { notes: entry.task.notes.slice(0, 500) } : {}),
     });
@@ -471,45 +470,6 @@ async function withCurrentVersion<T>(
   }
 }
 
-function timeBlock(
-  context: ToolContext,
-  date: string | null,
-  input: { start_time?: string; end_time?: string },
-) {
-  if (!input.start_time && !input.end_time) {
-    return { startsAt: null, endsAt: null };
-  }
-  if (!date) throw new ValidationError("A time needs a date");
-  if (!input.start_time) {
-    throw new ValidationError("An end time needs a start time");
-  }
-
-  return {
-    startsAt: toIso(date, input.start_time, context.timeZone),
-    endsAt: input.end_time
-      ? toIso(date, input.end_time, context.timeZone)
-      : null,
-  };
-}
-
 function today(context: ToolContext) {
-  return calendarDateInTimeZone(
-    context.now?.() ?? new Date(),
-    context.timeZone,
-  );
-}
-
-function wait(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-function toIso(date: string, time: string, timeZone: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  return zonedDateTimeToIso(date, hours * 60 + minutes, timeZone);
-}
-
-function localTime(timestamp: Date, timeZone: string) {
-  const minutes = minutesInTimeZone(timestamp.toISOString(), timeZone);
-  const hours = Math.floor(minutes / 60);
-  return `${String(hours).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  return todayIn(context.timeZone, context.now?.());
 }
