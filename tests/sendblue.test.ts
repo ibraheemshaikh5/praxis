@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MessageCreator } from "@/lib/sms/agent";
 import type { SendblueConfig } from "@/lib/sms/config";
-import { FAILURE_REPLY } from "@/lib/sms/inbound";
+import { FAILURE_REPLY } from "@/lib/sms/reply";
 import { POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
 import { listInboundTexts, sendSendblueText } from "@/lib/sms/sendblue";
 import type { PlannerOperations } from "@/lib/sms/tools";

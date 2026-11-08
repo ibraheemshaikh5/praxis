@@ -41,6 +41,43 @@ export function isValidTwilioSignature(
   );
 }
 
+export type TwilioWebhookDecision =
+  | { kind: "rejected" }
+  | { kind: "ignored" }
+  | { kind: "accepted"; providerSid: string; body: string };
+
+/**
+ * Decides whether a webhook delivery is a text from the owner. An unsigned or
+ * forged request is rejected; anything else that is not the owner's text is
+ * acknowledged and dropped, so a stranger who finds the number gets nothing.
+ */
+export function screenTwilioWebhook(
+  authToken: string,
+  ownerPhone: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null,
+): TwilioWebhookDecision {
+  if (!isValidTwilioSignature(authToken, url, params, signature)) {
+    return { kind: "rejected" };
+  }
+
+  const providerSid = params.MessageSid?.trim();
+  const body = params.Body?.trim();
+  if (params.From?.trim() !== ownerPhone || !providerSid || !body) {
+    return { kind: "ignored" };
+  }
+  return { kind: "accepted", providerSid, body };
+}
+
+/** The webhook's form fields; Twilio sends only strings. */
+export async function readTwilioForm(request: Request) {
+  const form = await request.formData();
+  return Object.fromEntries(
+    [...form.entries()].map(([key, value]) => [key, String(value)]),
+  );
+}
+
 /** An empty TwiML document: acknowledges the webhook without replying. */
 export function emptyTwimlResponse() {
   return new Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', {

@@ -8,7 +8,7 @@ import {
   readTwilioConfig,
   type TwilioConfig,
 } from "@/lib/sms/config";
-import { FAILURE_REPLY, replyToText, screenInbound } from "@/lib/sms/inbound";
+import { FAILURE_REPLY, replyToText } from "@/lib/sms/reply";
 import {
   plannerTools,
   runPlannerTool,
@@ -18,6 +18,7 @@ import {
 import {
   computeTwilioSignature,
   isValidTwilioSignature,
+  screenTwilioWebhook,
   sendSms,
 } from "@/lib/sms/twilio";
 import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
@@ -163,14 +164,25 @@ describe("sms configuration", () => {
 });
 
 describe("inbound screening", () => {
+  function screen(params: Record<string, string>, signature: string) {
+    const { twilio, assistant } = config();
+    return screenTwilioWebhook(
+      twilio.authToken,
+      assistant.ownerPhone,
+      WEBHOOK_URL,
+      params,
+      signature,
+    );
+  }
+
   function signed(params: Record<string, string>) {
     return computeTwilioSignature("twilio-token", WEBHOOK_URL, params);
   }
 
   it("rejects an unsigned delivery", () => {
-    expect(
-      screenInbound(config(), WEBHOOK_URL, { From: "+15551234567" }, "bogus"),
-    ).toEqual({ kind: "rejected", status: 403 });
+    expect(screen({ From: "+15551234567" }, "bogus")).toEqual({
+      kind: "rejected",
+    });
   });
 
   it("ignores texts from anyone but the owner, and empty texts", () => {
@@ -179,12 +191,10 @@ describe("inbound screening", () => {
       MessageSid: "SM2",
       Body: "delete all my tasks",
     };
-    expect(
-      screenInbound(config(), WEBHOOK_URL, stranger, signed(stranger)),
-    ).toEqual({ kind: "ignored" });
+    expect(screen(stranger, signed(stranger))).toEqual({ kind: "ignored" });
 
     const empty = { From: "+15551234567", MessageSid: "SM3", Body: "  " };
-    expect(screenInbound(config(), WEBHOOK_URL, empty, signed(empty))).toEqual({
+    expect(screen(empty, signed(empty))).toEqual({
       kind: "ignored",
     });
   });
@@ -195,9 +205,7 @@ describe("inbound screening", () => {
       MessageSid: "SM4",
       Body: " what's left today? ",
     };
-    expect(
-      screenInbound(config(), WEBHOOK_URL, params, signed(params)),
-    ).toEqual({
+    expect(screen(params, signed(params))).toEqual({
       kind: "accepted",
       providerSid: "SM4",
       body: "what's left today?",
