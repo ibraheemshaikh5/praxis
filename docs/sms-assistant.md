@@ -1,15 +1,14 @@
 # SMS Assistant
 
-Texting reads and changes the daily planner. Claude interprets each text with
-tools that wrap `DailyPlannerService`, and the reply is sent back on the same
-channel. Two channels share the agent, tools and conversation history:
-Sendblue (iMessage, polled) and Twilio (SMS, webhook).
+Texting a Sendblue line reads and changes the daily planner. Claude interprets
+each text with tools that wrap `DailyPlannerService`, and the reply is sent
+back from the line.
 
 The assistant acts for exactly one planner owner, `SMS_OWNER_USER_ID`, and
-only on texts from `SMS_OWNER_PHONE`. There is no sign-in on these paths, so
-the provider's authentication and the sender are the whole authorization.
+only on texts from `SMS_OWNER_PHONE`. There is no sign-in on this path, so the
+scheduler's bearer secret and the sender are the whole authorization.
 
-## Sendblue
+## Flow
 
 Sendblue's free plan has a shared line, no webhooks, and can message only
 verified contacts. Texts are therefore pulled, not pushed.
@@ -37,20 +36,6 @@ A text older than 15 minutes when the poller first sees it is ignored rather
 than acted on late. Replies take up to one polling interval plus the agent's
 own time.
 
-## Twilio
-
-`POST /api/sms/inbound` is Twilio's incoming-message webhook.
-
-1. The `X-Twilio-Signature` header is checked against `TWILIO_AUTH_TOKEN`. An
-   unsigned or forged request gets `403`.
-2. A text from any number other than `SMS_OWNER_PHONE` is acknowledged and
-   dropped.
-3. The text is recorded in `sms_messages`. The unique `provider_sid` makes a
-   Twilio retry a no-op.
-4. The webhook answers with empty TwiML at once. Twilio waits at most 15
-   seconds and a reply can take longer, so the agent runs in `after()` and
-   replies through the Twilio REST API.
-
 ## Decisions
 
 - The agent acts without asking for confirmation, deletes included. Deleted
@@ -69,48 +54,27 @@ own time.
   it is re-read after 400 ms and 1 s before concluding the task counts toward
   no goal. Both reads are skipped when the task is already in that state or
   there are no goals. `get_goals` reads progress on request.
-- Replies are capped at 1,600 characters on both channels.
+- Replies are capped at 1,600 characters.
 - The model is `claude-opus-5-5` at low effort with server-side refusal
   fallback. `SMS_AGENT_MODEL` overrides the model.
 
 ## Configuration
 
-Shared:
-
 | Variable | Value |
 | --- | --- |
 | `ANTHROPIC_API_KEY` | Claude API key |
+| `MAINTENANCE_SECRET` | Bearer secret the scheduler sends |
 | `SMS_OWNER_PHONE` | The owner's phone, E.164 |
 | `SMS_OWNER_USER_ID` | The owner's Supabase user id |
-| `SMS_AGENT_MODEL` | Optional model override |
-
-Sendblue, plus `MAINTENANCE_SECRET` for the poll route:
-
-| Variable | Value |
-| --- | --- |
 | `SENDBLUE_API_KEY` | API key id |
 | `SENDBLUE_API_SECRET` | API secret |
 | `SENDBLUE_FROM_NUMBER` | The Sendblue line the owner texts, E.164 |
+| `SMS_AGENT_MODEL` | Optional model override |
 
-Twilio:
+With any required variable missing or malformed the poll route returns
+`503 SMS_NOT_CONFIGURED` and records nothing.
 
-| Variable | Value |
-| --- | --- |
-| `TWILIO_ACCOUNT_SID` | `AC…` account SID |
-| `TWILIO_AUTH_TOKEN` | Signs webhooks and authorizes sends |
-| `TWILIO_PHONE_NUMBER` | The Twilio number, E.164 |
-| `SMS_WEBHOOK_URL` | Optional. The exact URL configured in Twilio, when it differs from the URL the app sees |
-
-A channel with any required variable missing or malformed returns
-`503 SMS_NOT_CONFIGURED` and records nothing. Either channel can be configured
-alone.
-
-Setup:
-
-- Sendblue: the owner's phone must be the account's verified contact (the
-  signup text verifies it). The scheduler can be Vercel Cron on a plan that
-  allows per-minute schedules, with `CRON_SECRET` set to `MAINTENANCE_SECRET`,
-  or any external scheduler that sends the bearer header.
-- Twilio: set the number's "A message comes in" webhook to
-  `https://<host>/api/sms/inbound`, method `POST`. US numbers must complete
-  carrier registration before replies are delivered.
+The owner's phone must be the Sendblue account's verified contact; the signup
+text verifies it. The scheduler can be cron-job.org, or Vercel Cron on a plan
+that allows per-minute schedules with `CRON_SECRET` set to
+`MAINTENANCE_SECRET`.

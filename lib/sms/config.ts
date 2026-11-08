@@ -1,19 +1,12 @@
 import { z } from "zod";
 
 import type { SendblueCredentials } from "./sendblue";
-import type { TwilioCredentials } from "./twilio";
 
-/** What every channel needs: whose planner it is, and how to reach them. */
+/** Whose planner the assistant runs, and how to reach them. */
 export type AssistantConfig = {
   ownerPhone: string;
   ownerUserId: string;
   model: string | undefined;
-};
-
-export type TwilioConfig = {
-  assistant: AssistantConfig;
-  twilio: TwilioCredentials;
-  webhookUrl: string | null;
 };
 
 export type SendblueConfig = {
@@ -32,13 +25,6 @@ const assistantSchema = z.object({
   SMS_AGENT_MODEL: z.string().min(1).optional(),
 });
 
-const twilioSchema = assistantSchema.extend({
-  TWILIO_ACCOUNT_SID: z.string().regex(/^AC[0-9a-fA-F]{32}$/),
-  TWILIO_AUTH_TOKEN: z.string().min(1),
-  TWILIO_PHONE_NUMBER: e164,
-  SMS_WEBHOOK_URL: z.string().url().startsWith("https://").optional(),
-});
-
 const sendblueSchema = assistantSchema.extend({
   SENDBLUE_API_KEY: z.string().min(1),
   SENDBLUE_API_SECRET: z.string().min(1),
@@ -46,25 +32,9 @@ const sendblueSchema = assistantSchema.extend({
 });
 
 /**
- * Each reader returns null unless every variable its channel needs is present
- * and well formed, so a half-configured deployment refuses to act on texts.
+ * Null unless every variable is present and well formed, so a half-configured
+ * deployment refuses to act on texts.
  */
-export function readTwilioConfig(
-  environment: Environment = process.env,
-): TwilioConfig | null {
-  const env = parse(twilioSchema, environment);
-  if (!env) return null;
-  return {
-    assistant: assistantFrom(env),
-    twilio: {
-      accountSid: env.TWILIO_ACCOUNT_SID,
-      authToken: env.TWILIO_AUTH_TOKEN,
-      fromNumber: env.TWILIO_PHONE_NUMBER,
-    },
-    webhookUrl: env.SMS_WEBHOOK_URL ?? null,
-  };
-}
-
 export function readSendblueConfig(
   environment: Environment = process.env,
 ): SendblueConfig | null {
