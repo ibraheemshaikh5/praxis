@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessageCreator } from "@/lib/sms/agent";
-import type { SendblueConfig } from "@/lib/sms/config";
+import type { AssistantConfig } from "@/lib/sms/config";
 import { FAILURE_REPLY } from "@/lib/sms/reply";
 import { POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
 import { sendblueLine } from "@/lib/sms/sendblue";
@@ -14,8 +14,10 @@ const LINE = "+15550001111";
 const USER_ID = "00000000-0000-4000-8000-0000000000b1";
 const NOW = new Date("2026-11-08T14:30:00Z");
 
-const CONFIG: SendblueConfig = {
-  assistant: { ownerPhone: OWNER, ownerUserId: USER_ID, model: undefined },
+const CONFIG: AssistantConfig = {
+  ownerPhone: OWNER,
+  ownerUserId: USER_ID,
+  model: undefined,
   sendblue: { apiKey: "sb-key", apiSecret: "sb-secret", fromNumber: LINE },
 };
 

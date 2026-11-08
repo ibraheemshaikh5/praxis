@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ConflictError } from "@/lib/daily-planner/errors";
 import { runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
-import { readSendblueConfig, type AssistantConfig } from "@/lib/sms/config";
+import { readAssistantConfig, type AssistantConfig } from "@/lib/sms/config";
 import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 import { FAILURE_REPLY, replyToText } from "@/lib/sms/reply";
 import {
@@ -34,6 +34,11 @@ const ASSISTANT: AssistantConfig = {
   ownerPhone: "+15551234567",
   ownerUserId: USER_ID,
   model: undefined,
+  sendblue: {
+    apiKey: "sb-key",
+    apiSecret: "sb-secret",
+    fromNumber: "+15550001111",
+  },
 };
 
 describe("message limits", () => {
@@ -46,31 +51,24 @@ describe("message limits", () => {
 describe("configuration", () => {
   it("reads a complete environment", () => {
     expect(
-      readSendblueConfig({
+      readAssistantConfig({
         ...ENVIRONMENT,
         SMS_AGENT_MODEL: "claude-sonnet-5-5",
       }),
-    ).toEqual({
-      assistant: { ...ASSISTANT, model: "claude-sonnet-5-5" },
-      sendblue: {
-        apiKey: "sb-key",
-        apiSecret: "sb-secret",
-        fromNumber: "+15550001111",
-      },
-    });
+    ).toEqual({ ...ASSISTANT, model: "claude-sonnet-5-5" });
   });
 
   it("is null unless every required variable is valid", () => {
-    expect(readSendblueConfig({})).toBeNull();
+    expect(readAssistantConfig({})).toBeNull();
     expect(
-      readSendblueConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
+      readAssistantConfig({ ...ENVIRONMENT, SMS_OWNER_PHONE: "555-123-4567" }),
     ).toBeNull();
     // A blank value counts as missing, as an empty line in .env reads.
     expect(
-      readSendblueConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
+      readAssistantConfig({ ...ENVIRONMENT, ANTHROPIC_API_KEY: "  " }),
     ).toBeNull();
     expect(
-      readSendblueConfig({ ...ENVIRONMENT, SENDBLUE_FROM_NUMBER: "" }),
+      readAssistantConfig({ ...ENVIRONMENT, SENDBLUE_FROM_NUMBER: "" }),
     ).toBeNull();
   });
 });

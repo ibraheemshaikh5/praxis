@@ -3,7 +3,7 @@ import { after, NextResponse } from "next/server";
 import { requireMaintenanceAuthorization, routeError } from "@/lib/api/routes";
 import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
 import { getProfileTimeZone } from "@/lib/planner/profile";
-import { readSendblueConfig } from "@/lib/sms/config";
+import { readAssistantConfig, SmsNotConfiguredError } from "@/lib/sms/config";
 import { pollSendblue } from "@/lib/sms/poll";
 import {
   getSmsConversationService,
@@ -31,28 +31,18 @@ async function poll(request: Request) {
   try {
     requireMaintenanceAuthorization(request);
 
-    const config = readSendblueConfig();
-    if (!config) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "SMS_NOT_CONFIGURED",
-            message: "Sendblue is not configured",
-          },
-        },
-        { status: 503 },
-      );
-    }
+    const config = readAssistantConfig();
+    if (!config) throw new SmsNotConfiguredError();
 
     after(async () => {
       try {
         const result = await pollSendblue({
           config,
-          line: sendblueLine(config.sendblue, config.assistant.ownerPhone),
+          line: sendblueLine(config.sendblue, config.ownerPhone),
           conversation: getSmsConversationService(),
           planner: getDailyPlannerService(),
           client: getSmsMessageCreator(),
-          timeZone: await getProfileTimeZone(config.assistant.ownerUserId),
+          timeZone: await getProfileTimeZone(config.ownerUserId),
         });
         if (result.answered > 0) console.info("Sendblue poll", result);
       } catch (error) {
