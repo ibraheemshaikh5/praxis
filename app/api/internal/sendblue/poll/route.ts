@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { requireMaintenanceAuthorization, routeError } from "@/lib/api/routes";
 import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/sms/runtime";
 
 // A poll answers up to a few texts in turn, each one a Claude round trip.
+// This bounds the background work started below.
 export const maxDuration = 60;
 
 /**
@@ -18,6 +19,12 @@ export const maxDuration = 60;
  * plan has no webhooks, so a scheduler calls this every minute with
  * `Authorization: Bearer <MAINTENANCE_SECRET>`. GET is accepted because that
  * is what Vercel Cron sends.
+ *
+ * The scheduler is answered at once and the poll runs in `after()`: answering
+ * texts can outlast a scheduler's request timeout (30 seconds on
+ * cron-job.org), which would otherwise count as a failed run. Overlapping
+ * polls are safe because a text is claimed by recording it before it is
+ * answered.
  */
 async function poll(request: Request) {
   try {
@@ -36,14 +43,21 @@ async function poll(request: Request) {
       );
     }
 
-    const result = await pollSendblue({
-      config,
-      conversation: getSmsConversationService(),
-      planner: getDailyPlannerService(),
-      client: getSmsMessageCreator(),
-      timeZone: await getProfileTimeZone(config.assistant.ownerUserId),
+    after(async () => {
+      try {
+        const result = await pollSendblue({
+          config,
+          conversation: getSmsConversationService(),
+          planner: getDailyPlannerService(),
+          client: getSmsMessageCreator(),
+          timeZone: await getProfileTimeZone(config.assistant.ownerUserId),
+        });
+        if (result.answered > 0) console.info("Sendblue poll", result);
+      } catch (error) {
+        console.error("Sendblue poll failed", error);
+      }
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ accepted: true }, { status: 202 });
   } catch (error) {
     return routeError(error);
   }
