@@ -2,9 +2,12 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { z } from "zod";
+
+import { parseJsonOrNull, ProviderError, providerRequest } from "./http";
 import { truncateSms } from "./limits";
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const sendResponseSchema = z.object({ sid: z.string().min(1) });
 
 /**
  * Twilio signs each webhook with HMAC-SHA1 over the full request URL followed
@@ -55,37 +58,36 @@ export async function sendSms(
   credentials: TwilioCredentials,
   to: string,
   body: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
 ): Promise<{ sid: string }> {
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(
-    credentials.accountSid,
-  )}/Messages.json`;
   const authorization = Buffer.from(
     `${credentials.accountSid}:${credentials.authToken}`,
   ).toString("base64");
 
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: {
-      authorization: `Basic ${authorization}`,
-      "content-type": "application/x-www-form-urlencoded",
+  const response = await providerRequest(
+    "Twilio",
+    "send",
+    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(
+      credentials.accountSid,
+    )}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${authorization}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        To: to,
+        From: credentials.fromNumber,
+        Body: truncateSms(body),
+      }),
     },
-    body: new URLSearchParams({
-      To: to,
-      From: credentials.fromNumber,
-      Body: truncateSms(body),
-    }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+    fetchImpl,
+  );
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Twilio send failed (${response.status}): ${detail}`);
+  const parsed = sendResponseSchema.safeParse(parseJsonOrNull(response));
+  if (!parsed.success) {
+    throw new ProviderError("Twilio", "send", "returned no message SID");
   }
-
-  const payload = (await response.json()) as { sid?: unknown };
-  if (typeof payload.sid !== "string") {
-    throw new Error("Twilio send returned no message SID");
-  }
-  return { sid: payload.sid };
+  return { sid: parsed.data.sid };
 }

@@ -2,10 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 
+import { parseJsonOrNull, ProviderError, providerRequest } from "./http";
 import { truncateSms } from "./limits";
 
 const API_BASE = "https://api.sendblue.com";
-const REQUEST_TIMEOUT_MS = 15_000;
 
 export type SendblueCredentials = {
   apiKey: string;
@@ -30,9 +30,19 @@ const messageSchema = z.object({
   message_type: z.string().nullish(),
 });
 
+type SendblueMessage = z.infer<typeof messageSchema>;
+
 const listResponseSchema = z.object({
   data: z.array(z.unknown()).default([]),
 });
+
+const sendResponseSchema = z.object({
+  message_handle: z.string().nullish(),
+  status: z.string().nullish(),
+});
+
+// Statuses that mean Sendblue did not send, even on a 2xx response.
+const UNSENT_STATUSES = new Set(["DECLINED", "ERROR"]);
 
 /**
  * Inbound texts from the owner to the line since the given time, oldest
@@ -46,7 +56,7 @@ export async function listInboundTexts(
   credentials: SendblueCredentials,
   ownerPhone: string,
   since: Date,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
 ): Promise<SendblueInbound[]> {
   const query = new URLSearchParams({
     is_outbound: "false",
@@ -59,82 +69,76 @@ export async function listInboundTexts(
     limit: "50",
   });
 
-  const response = await fetchImpl(`${API_BASE}/api/v2/messages?${query}`, {
-    headers: authHeaders(credentials),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Sendblue list failed (${response.status}): ${await safeText(response)}`,
-    );
-  }
+  const body = await providerRequest(
+    "Sendblue",
+    "list",
+    `${API_BASE}/api/v2/messages?${query}`,
+    { headers: authHeaders(credentials) },
+    fetchImpl,
+  );
 
-  const { data } = listResponseSchema.parse(await response.json());
-  const texts: SendblueInbound[] = [];
-  for (const row of data) {
+  const { data } = listResponseSchema.parse(parseJsonOrNull(body));
+  return data.flatMap((row) => {
     const parsed = messageSchema.safeParse(row);
-    if (!parsed.success) continue;
-
-    const message = parsed.data;
-    const body = message.content?.trim();
-    if (
-      message.is_outbound !== false ||
-      message.is_reaction === true ||
-      (message.message_type ?? "message") !== "message" ||
-      message.from_number !== ownerPhone ||
-      (message.sendblue_number != null &&
-        message.sendblue_number !== credentials.fromNumber) ||
-      !body
-    ) {
-      continue;
-    }
-    texts.push({ handle: message.message_handle, body });
-  }
-  return texts;
+    if (!parsed.success) return [];
+    const text = parsed.data.content?.trim();
+    return text && isOwnerText(parsed.data, credentials.fromNumber, ownerPhone)
+      ? [{ handle: parsed.data.message_handle, body: text }]
+      : [];
+  });
 }
-
-const sendResponseSchema = z.object({
-  message_handle: z.string().nullish(),
-  status: z.string().nullish(),
-  error_key: z.string().nullish(),
-  error_reason: z.string().nullish(),
-});
 
 export async function sendSendblueText(
   credentials: SendblueCredentials,
   to: string,
   body: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
 ): Promise<{ handle: string | null }> {
-  const response = await fetchImpl(`${API_BASE}/api/send-message`, {
-    method: "POST",
-    headers: {
-      ...authHeaders(credentials),
-      "content-type": "application/json",
+  const response = await providerRequest(
+    "Sendblue",
+    "send",
+    `${API_BASE}/api/send-message`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(credentials),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        number: to,
+        // Required on the free shared-line plan.
+        from_number: credentials.fromNumber,
+        content: truncateSms(body),
+      }),
     },
-    body: JSON.stringify({
-      number: to,
-      // Required on the free shared-line plan.
-      from_number: credentials.fromNumber,
-      content: truncateSms(body),
-    }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+    fetchImpl,
+  );
 
-  const text = await safeText(response);
-  if (!response.ok) {
-    throw new Error(`Sendblue send failed (${response.status}): ${text}`);
+  const parsed = sendResponseSchema.safeParse(parseJsonOrNull(response));
+  const payload = parsed.success ? parsed.data : {};
+  if (payload.status && UNSENT_STATUSES.has(payload.status)) {
+    throw new ProviderError(
+      "Sendblue",
+      "send",
+      `${payload.status}: ${response}`,
+    );
   }
+  return { handle: payload.message_handle ?? null };
+}
 
-  const payload = sendResponseSchema.safeParse(safeJson(text));
-  const status = payload.success ? payload.data.status : null;
-  // A rule can decline a send with a 2xx in some paths; never report it sent.
-  if (status === "DECLINED" || status === "ERROR") {
-    throw new Error(`Sendblue send ${status}: ${text}`);
-  }
-  return {
-    handle: payload.success ? (payload.data.message_handle ?? null) : null,
-  };
+/** A 1:1 text the owner sent to this line, as opposed to anything else. */
+function isOwnerText(
+  message: SendblueMessage,
+  line: string,
+  ownerPhone: string,
+) {
+  return (
+    message.is_outbound === false &&
+    message.is_reaction !== true &&
+    (message.message_type ?? "message") === "message" &&
+    message.from_number === ownerPhone &&
+    (message.sendblue_number == null || message.sendblue_number === line)
+  );
 }
 
 function authHeaders(credentials: SendblueCredentials) {
@@ -142,16 +146,4 @@ function authHeaders(credentials: SendblueCredentials) {
     "sb-api-key-id": credentials.apiKey,
     "sb-api-secret-key": credentials.apiSecret,
   };
-}
-
-async function safeText(response: Response) {
-  return response.text().catch(() => "");
-}
-
-function safeJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
 }
