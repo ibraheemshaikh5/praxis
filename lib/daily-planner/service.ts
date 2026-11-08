@@ -838,6 +838,28 @@ export class DailyPlannerService {
     return this.findOwnedTask(userId, taskId);
   }
 
+  /**
+   * The planner day the task currently sits on, or null when it is
+   * unscheduled. Metric progress attributes a completed task to this day.
+   */
+  async findActivePlannerDate(
+    userId: string,
+    taskId: string,
+  ): Promise<string | null> {
+    const [entry] = await this.db
+      .select({ plannerDate: plannerEntries.plannerDate })
+      .from(plannerEntries)
+      .where(
+        and(
+          eq(plannerEntries.taskId, taskId),
+          eq(plannerEntries.userId, userId),
+          isNull(plannerEntries.closedAt),
+        ),
+      )
+      .limit(1);
+    return entry?.plannerDate ?? null;
+  }
+
   private async findOwnedTask(userId: string, taskId: string) {
     const [task] = await this.db
       .select()
