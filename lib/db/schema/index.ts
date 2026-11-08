@@ -4,3 +4,4 @@ export * from "./planner";
 export * from "./knowledge";
 export * from "./rolodex";
 export * from "./whiteboards";
+export * from "./sms";

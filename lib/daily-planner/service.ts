@@ -833,6 +833,11 @@ export class DailyPlannerService {
     return { link };
   }
 
+  /** The owner's task, deleted or not; undefined when it does not exist. */
+  async findTask(userId: string, taskId: string) {
+    return this.findOwnedTask(userId, taskId);
+  }
+
   private async findOwnedTask(userId: string, taskId: string) {
     const [task] = await this.db
       .select()
