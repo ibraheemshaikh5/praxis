@@ -1,15 +1,13 @@
 import { after, NextResponse } from "next/server";
 
 import { requireMaintenanceAuthorization, routeError } from "@/lib/api/routes";
-import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
-import { getProfileTimeZone } from "@/lib/planner/profile";
-import { readAssistantConfig, SmsNotConfiguredError } from "@/lib/sms/config";
-import { pollSendblue } from "@/lib/sms/poll";
 import {
-  getSmsConversationService,
-  getSmsMessageCreator,
-} from "@/lib/sms/runtime";
-import { sendblueLine } from "@/lib/sms/sendblue";
+  readAssistantConfig,
+  SmsNotConfiguredError,
+  type AssistantConfig,
+} from "@/lib/sms/config";
+import { pollSendblue } from "@/lib/sms/poll";
+import { createPollDeps } from "@/lib/sms/runtime";
 
 // A poll answers up to a few texts in turn, each one a Claude round trip.
 // This bounds the background work started below.
@@ -30,28 +28,22 @@ export const maxDuration = 60;
 async function poll(request: Request) {
   try {
     requireMaintenanceAuthorization(request);
-
     const config = readAssistantConfig();
     if (!config) throw new SmsNotConfiguredError();
 
-    after(async () => {
-      try {
-        const result = await pollSendblue({
-          config,
-          line: sendblueLine(config.sendblue, config.ownerPhone),
-          conversation: getSmsConversationService(),
-          planner: getDailyPlannerService(),
-          client: getSmsMessageCreator(),
-          timeZone: await getProfileTimeZone(config.ownerUserId),
-        });
-        if (result.answered > 0) console.info("Sendblue poll", result);
-      } catch (error) {
-        console.error("Sendblue poll failed", error);
-      }
-    });
+    after(() => runPoll(config));
     return NextResponse.json({ accepted: true }, { status: 202 });
   } catch (error) {
     return routeError(error);
+  }
+}
+
+async function runPoll(config: AssistantConfig) {
+  try {
+    const result = await pollSendblue(createPollDeps(config));
+    if (result.answered > 0) console.info("Sendblue poll", result);
+  } catch (error) {
+    console.error("Sendblue poll failed", error);
   }
 }
 

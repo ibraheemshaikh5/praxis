@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MessageCreator } from "@/lib/sms/agent";
 import type { AssistantConfig } from "@/lib/sms/config";
-import { FAILURE_REPLY } from "@/lib/sms/reply";
-import { POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
+import { FAILURE_REPLY, POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
 import { sendblueLine } from "@/lib/sms/sendblue";
 import type { PlannerOperations } from "@/lib/sms/tools";
 import type { ConversationStore } from "@/lib/sms/types";
@@ -220,14 +219,13 @@ describe("sendblue poller", () => {
       conversation: store,
       planner,
       client,
-      timeZone: "America/New_York",
-      now: NOW,
+      timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
 
-    expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 2 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 2, answered: 2 });
     // The next poll's window overlaps this one and sees both again.
-    expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 0 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 2, answered: 0 });
 
     expect(sent.map((message) => message.content)).toEqual([
       "Got: add milk",
@@ -248,6 +246,31 @@ describe("sendblue poller", () => {
     );
   });
 
+  it("touches nothing but the list when there is nothing new", async () => {
+    const { store } = memoryStore();
+    const { client, create } = echoClient();
+    const timeZone = vi.fn(async () => "America/New_York");
+    const { fetchImpl, sent } = sendblueFetch([]);
+
+    expect(
+      await pollSendblue(
+        {
+          config: CONFIG,
+          conversation: store,
+          planner,
+          client,
+          timeZone,
+          line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
+        },
+        NOW,
+      ),
+    ).toEqual({ seen: 0, answered: 0 });
+    expect(timeZone).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(store.recordInbound).not.toHaveBeenCalled();
+    expect(sent).toEqual([]);
+  });
+
   it("answers at most five texts per poll and leaves the rest", async () => {
     const { store } = memoryStore();
     const { client } = echoClient();
@@ -261,13 +284,12 @@ describe("sendblue poller", () => {
       conversation: store,
       planner,
       client,
-      timeZone: "America/New_York",
-      now: NOW,
+      timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
 
-    expect(await pollSendblue(deps)).toEqual({ seen: 7, answered: 5 });
-    expect(await pollSendblue(deps)).toEqual({ seen: 7, answered: 2 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 7, answered: 5 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 7, answered: 2 });
     expect(sent).toHaveLength(7);
   });
 
@@ -281,15 +303,17 @@ describe("sendblue poller", () => {
     const { fetchImpl, sent } = sendblueFetch([inbound("a", "add milk")]);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await pollSendblue({
-      config: CONFIG,
-      conversation: store,
-      planner,
-      client,
-      timeZone: "America/New_York",
-      now: NOW,
-      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
-    });
+    await pollSendblue(
+      {
+        config: CONFIG,
+        conversation: store,
+        planner,
+        client,
+        timeZone: async () => "America/New_York",
+        line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
+      },
+      NOW,
+    );
 
     error.mockRestore();
     expect(sent.map((message) => message.content)).toEqual([FAILURE_REPLY]);
@@ -309,14 +333,13 @@ describe("sendblue poller", () => {
       conversation: store,
       planner,
       client,
-      timeZone: "America/New_York",
-      now: NOW,
+      timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
     };
-    expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 2 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 2, answered: 2 });
     expect(error).toHaveBeenCalledTimes(2);
     // Both stay recorded, so a later poll does not act on them a second time.
-    expect(await pollSendblue(deps)).toEqual({ seen: 2, answered: 0 });
+    expect(await pollSendblue(deps, NOW)).toEqual({ seen: 2, answered: 0 });
     error.mockRestore();
   });
 });

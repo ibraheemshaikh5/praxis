@@ -5,7 +5,6 @@ import { ConflictError } from "@/lib/daily-planner/errors";
 import { runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
 import { readAssistantConfig, type AssistantConfig } from "@/lib/sms/config";
 import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
-import { FAILURE_REPLY, replyToText } from "@/lib/sms/reply";
 import {
   plannerTools,
   runPlannerTool,
@@ -528,81 +527,5 @@ describe("sms agent", () => {
       reply: "I can't help with that one.",
       toolLog: null,
     });
-  });
-});
-
-describe("replying to a text", () => {
-  function fakeSender() {
-    return vi.fn(async (_body: string) => ({ providerSid: "out-1" }));
-  }
-
-  function conversation() {
-    return {
-      recordInbound: vi.fn(async () => null),
-      recentHistory: vi.fn(async () => []),
-      recordOutbound: vi.fn(async () => ({})),
-    };
-  }
-
-  it("sends the agent's reply and records it", async () => {
-    const { planner } = fakePlanner();
-    const send = fakeSender();
-    const store = conversation();
-    const { client } = scriptedClient([
-      message("end_turn", [{ type: "text", text: "3 left today." }]),
-    ]);
-
-    await replyToText({
-      assistant: ASSISTANT,
-      conversation: store,
-      planner: planner as unknown as PlannerOperations,
-      client,
-      timeZone: "America/New_York",
-      inboundId: "inbound-1",
-      text: "what's left?",
-      send,
-    });
-
-    expect(send).toHaveBeenCalledWith("3 left today.");
-    expect(store.recentHistory).toHaveBeenCalledWith(USER_ID, "inbound-1");
-    expect(store.recordOutbound).toHaveBeenCalledWith(
-      USER_ID,
-      "out-1",
-      "3 left today.",
-      null,
-    );
-  });
-
-  it("still answers when the agent fails", async () => {
-    const { planner } = fakePlanner();
-    const send = fakeSender();
-    const store = conversation();
-    const client: MessageCreator = {
-      create: vi.fn(async () => {
-        throw new Error("overloaded");
-      }),
-    };
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    await replyToText({
-      assistant: ASSISTANT,
-      conversation: store,
-      planner: planner as unknown as PlannerOperations,
-      client,
-      timeZone: "America/New_York",
-      inboundId: "inbound-2",
-      text: "add milk",
-      send,
-    });
-
-    expect(error).toHaveBeenCalled();
-    error.mockRestore();
-    expect(send).toHaveBeenCalledWith(FAILURE_REPLY);
-    expect(store.recordOutbound).toHaveBeenCalledWith(
-      USER_ID,
-      "out-1",
-      FAILURE_REPLY,
-      null,
-    );
   });
 });
