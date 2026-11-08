@@ -157,6 +157,8 @@ async function resolveTarget(): Promise<{
   });
 
   if (pending.length === 0) {
+    // .github/workflows/migrate.yml matches this wording to skip the
+    // production approval when nothing is pending; keep the two in step.
     console.log(`${target.description} is already up to date.`);
     process.exit(0);
   }

@@ -45,3 +45,18 @@ as development, because the local stack is rebuilt from migrations on demand.
 `pnpm db:smoke` prints what each variable resolves to and what that database
 says it is. It is the fastest way to catch an environment pointed at the wrong
 project.
+
+## Deployment
+
+`.github/workflows/migrate.yml` applies migrations after CI passes on `main`:
+the dev project first, then production once a reviewer approves the
+`production` GitHub environment. It runs the same `pnpm db:migrate:*` scripts,
+so every guard above still holds; the approval replaces typing
+`PRAXIS_CONFIRM_PRODUCTION`. When production has nothing pending, the
+production job is skipped and asks for no approval. A run is never cancelled
+partway, and can be started by hand from `main`.
+
+It reads repository secrets `DEV_DIRECT_DATABASE_URL`,
+`PRODUCTION_DIRECT_DATABASE_URL` and `PRAXIS_PRODUCTION_PROJECT_REF`. The
+`production` environment needs required reviewers set in the repository
+settings, or the job runs without waiting.
