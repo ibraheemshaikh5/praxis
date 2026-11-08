@@ -1,9 +1,9 @@
 import type { MessageCreator } from "./agent";
 import type { SendblueConfig } from "./config";
-import type { ConversationStore } from "./inbound";
 import { replyToText } from "./inbound";
 import { listInboundTexts, sendSendblueText } from "./sendblue";
 import type { PlannerOperations } from "./tools";
+import type { ConversationStore } from "./types";
 
 // How far back each poll looks. Overlapping windows are what make a missed or
 // failed poll harmless; texts already recorded are skipped. A text older than
@@ -14,14 +14,6 @@ export const POLL_LOOKBACK_MS = 15 * 60 * 1000;
 // this bounds how long it runs. Anything past it waits for the next poll.
 const MAX_TEXTS_PER_POLL = 5;
 
-export type PollStore = ConversationStore & {
-  recordInbound(
-    userId: string,
-    providerSid: string,
-    body: string,
-  ): Promise<{ id: string } | null>;
-};
-
 /**
  * Reads recent texts from the Sendblue line and answers each new one, in the
  * order they were sent. Recording a text before answering it is the claim: an
@@ -29,7 +21,7 @@ export type PollStore = ConversationStore & {
  */
 export async function pollSendblue(deps: {
   config: SendblueConfig;
-  conversation: PollStore;
+  conversation: ConversationStore;
   planner: PlannerOperations;
   client: MessageCreator;
   timeZone: string;

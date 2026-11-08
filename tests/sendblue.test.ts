@@ -4,9 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { MessageCreator } from "@/lib/sms/agent";
 import type { SendblueConfig } from "@/lib/sms/config";
 import { FAILURE_REPLY } from "@/lib/sms/inbound";
-import { POLL_LOOKBACK_MS, pollSendblue, type PollStore } from "@/lib/sms/poll";
+import { POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
 import { listInboundTexts, sendSendblueText } from "@/lib/sms/sendblue";
 import type { PlannerOperations } from "@/lib/sms/tools";
+import type { ConversationStore } from "@/lib/sms/types";
 
 const OWNER = "+15551234567";
 const LINE = "+15550001111";
@@ -154,7 +155,7 @@ function memoryStore() {
     toolLog: string | null;
   }[] = [];
 
-  const store: PollStore = {
+  const store: ConversationStore = {
     recordInbound: vi.fn(async (_userId, providerSid, body) => {
       if (rows.some((row) => row.providerSid === providerSid)) return null;
       const row = {

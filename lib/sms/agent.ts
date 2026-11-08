@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
 import { truncateToolLog } from "./limits";
+import type { HistoryTurn } from "./types";
 import { plannerTools, runPlannerTool, type ToolContext } from "./tools";
 
 export const DEFAULT_SMS_MODEL = "claude-opus-5-5";
@@ -27,12 +28,6 @@ export type MessageCreator = {
   create(
     params: Anthropic.Beta.MessageCreateParamsNonStreaming,
   ): Promise<Anthropic.Beta.BetaMessage>;
-};
-
-export type HistoryTurn = {
-  direction: "inbound" | "outbound";
-  body: string;
-  toolLog: string | null;
 };
 
 export type AgentReply = {
