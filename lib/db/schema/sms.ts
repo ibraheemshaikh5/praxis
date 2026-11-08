@@ -52,3 +52,22 @@ export const smsMessages = pgTable(
 );
 
 export type SmsMessage = typeof smsMessages.$inferSelect;
+
+export const smsPollLeases = pgTable(
+  "sms_poll_leases",
+  {
+    userId: uuid("user_id").primaryKey(),
+    holder: uuid("holder").notNull(),
+    heldUntil: timestamp("held_until", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "sms_poll_leases_user_id_profiles_id_fk",
+      columns: [table.userId],
+      foreignColumns: [profiles.id],
+    }).onDelete("cascade"),
+  ],
+);

@@ -23,4 +23,10 @@ export type ConversationStore = {
     toolLog: string | null,
   ): Promise<unknown>;
   recentHistory(userId: string, excludeId: string): Promise<HistoryTurn[]>;
+  /**
+   * Takes the owner's poll lease for the given time, returning a token to
+   * release it with, or null while another poll holds it.
+   */
+  acquirePollLease(userId: string, ttlMs: number): Promise<string | null>;
+  releasePollLease(userId: string, token: string): Promise<void>;
 };

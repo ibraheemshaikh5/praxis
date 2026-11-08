@@ -158,7 +158,19 @@ function memoryStore() {
     toolLog: string | null;
   }[] = [];
 
+  // One lease, as the table holds one row per owner.
+  let leaseHolder: string | null = null;
+  let leaseCount = 0;
+
   const store: ConversationStore = {
+    acquirePollLease: vi.fn(async () => {
+      if (leaseHolder) return null;
+      leaseHolder = `lease-${(leaseCount += 1)}`;
+      return leaseHolder;
+    }),
+    releasePollLease: vi.fn(async (_userId, token) => {
+      if (leaseHolder === token) leaseHolder = null;
+    }),
     recordInbound: vi.fn(async (_userId, providerSid, body) => {
       if (rows.some((row) => row.providerSid === providerSid)) return null;
       const row = {
@@ -186,7 +198,13 @@ function memoryStore() {
         .map(({ direction, body, toolLog }) => ({ direction, body, toolLog })),
     ),
   };
-  return { store, rows };
+  return {
+    store,
+    rows,
+    holdLease: () => {
+      leaseHolder = "someone-else";
+    },
+  };
 }
 
 function echoClient() {
@@ -268,7 +286,64 @@ describe("sendblue poller", () => {
     expect(timeZone).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
     expect(store.recordInbound).not.toHaveBeenCalled();
+    expect(store.acquirePollLease).not.toHaveBeenCalled();
     expect(sent).toEqual([]);
+  });
+
+  it("leaves texts unclaimed while another poll holds the lease", async () => {
+    const { store, rows, holdLease } = memoryStore();
+    const { client } = echoClient();
+    const { fetchImpl, sent } = sendblueFetch([inbound("a", "undo")]);
+    const deps = {
+      config: CONFIG,
+      conversation: store,
+      planner,
+      client,
+      timeZone: async () => "America/New_York",
+      line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
+    };
+
+    holdLease();
+    expect(await pollSendblue(deps, NOW)).toEqual({
+      seen: 1,
+      answered: 0,
+      busy: true,
+    });
+    // Not recorded, so it is still there for the holder or the next poll.
+    expect(rows).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+
+  it("releases the lease when it is done, even after a failure", async () => {
+    const { store } = memoryStore();
+    const { client } = echoClient();
+    const { fetchImpl } = sendblueFetch([inbound("a", "add milk")]);
+    const failing = {
+      ...store,
+      recentHistory: vi.fn(async () => {
+        throw new Error("database down");
+      }),
+      recordOutbound: vi.fn(async () => {
+        throw new Error("database down");
+      }),
+    };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await pollSendblue(
+      {
+        config: CONFIG,
+        conversation: failing,
+        planner,
+        client,
+        timeZone: async () => "America/New_York",
+        line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
+      },
+      NOW,
+    );
+    error.mockRestore();
+
+    expect(store.releasePollLease).toHaveBeenCalledWith(USER_ID, "lease-1");
+    expect(await store.acquirePollLease(USER_ID, 1)).toBe("lease-2");
   });
 
   it("answers at most five texts per poll and leaves the rest", async () => {

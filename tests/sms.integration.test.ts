@@ -200,6 +200,27 @@ describeDatabase("sms assistant database integration", () => {
     expect((await planner.findTask(OTHER, task.id))?.deletedAt).toBeNull();
   });
 
+  it("lets one poll hold the owner's lease at a time", async () => {
+    const first = await conversation.acquirePollLease(OWNER, 60_000);
+    expect(first).toEqual(expect.any(String));
+    expect(await conversation.acquirePollLease(OWNER, 60_000)).toBeNull();
+    // Another owner's lease is separate.
+    expect(await conversation.acquirePollLease(OTHER, 60_000)).not.toBeNull();
+
+    // A stale holder's release does not free a lease it no longer holds.
+    await conversation.releasePollLease(OWNER, crypto.randomUUID());
+    expect(await conversation.acquirePollLease(OWNER, 60_000)).toBeNull();
+
+    await conversation.releasePollLease(OWNER, first!);
+    const second = await conversation.acquirePollLease(OWNER, 1);
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(first);
+
+    // An expired lease is taken over without being released.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await conversation.acquirePollLease(OWNER, 60_000)).not.toBeNull();
+  });
+
   it("records a text once and returns recent history oldest first", async () => {
     const first = await conversation.recordInbound(
       OWNER,

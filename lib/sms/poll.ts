@@ -16,6 +16,10 @@ export const POLL_LOOKBACK_MS = 15 * 60 * 1000;
 // this bounds how long it runs. Anything past it waits for the next poll.
 const MAX_TEXTS_PER_POLL = 5;
 
+// Outlasts the poll route's 60-second maxDuration, so a poll the platform
+// stops mid-answer frees the lease for the poll after next at the latest.
+export const POLL_LEASE_MS = 90_000;
+
 export type PollDeps = {
   config: AssistantConfig;
   line: SendblueLine;
@@ -28,33 +32,46 @@ export type PollDeps = {
 
 /**
  * Reads recent texts from the line and answers each new one, in the order
- * they were sent. Recording a text before answering it is the claim: an
- * overlapping poll that sees the same text finds it recorded and skips it.
+ * they were sent, holding the owner's poll lease while it does. Recording a
+ * text before answering it is the claim, so no text is answered twice.
  */
 export async function pollSendblue(deps: PollDeps, now = new Date()) {
   const texts = await deps.line.listInboundTexts(
     new Date(now.getTime() - POLL_LOOKBACK_MS),
   );
 
+  if (texts.length === 0) return { seen: 0, answered: 0 };
+
+  // One poll answers at a time, so a follow-up ("undo") never runs before the
+  // reply it refers to is saved. A poll that finds the lease held leaves its
+  // texts unclaimed for the holder, or the next poll, to answer in order.
+  const userId = deps.config.ownerUserId;
+  const lease = await deps.conversation.acquirePollLease(userId, POLL_LEASE_MS);
+  if (!lease) return { seen: texts.length, answered: 0, busy: true };
+
   let answered = 0;
-  for (const text of texts) {
-    if (answered >= MAX_TEXTS_PER_POLL) break;
+  try {
+    for (const text of texts) {
+      if (answered >= MAX_TEXTS_PER_POLL) break;
 
-    const inbound = await deps.conversation.recordInbound(
-      deps.config.ownerUserId,
-      text.handle,
-      text.body,
-    );
-    if (!inbound) continue;
+      const inbound = await deps.conversation.recordInbound(
+        userId,
+        text.handle,
+        text.body,
+      );
+      if (!inbound) continue;
 
-    answered += 1;
-    try {
-      await answer(deps, { id: inbound.id, text: text.body });
-    } catch (error) {
-      // The text stays recorded, so it is not answered twice; the next text
-      // in this poll still gets its turn.
-      console.error("Sendblue reply failed", error);
+      answered += 1;
+      try {
+        await answer(deps, { id: inbound.id, text: text.body });
+      } catch (error) {
+        // The text stays recorded, so it is not answered twice; the next text
+        // in this poll still gets its turn.
+        console.error("Sendblue reply failed", error);
+      }
     }
+  } finally {
+    await deps.conversation.releasePollLease(userId, lease);
   }
 
   return { seen: texts.length, answered };

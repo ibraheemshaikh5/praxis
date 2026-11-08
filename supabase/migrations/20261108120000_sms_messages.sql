@@ -30,3 +30,20 @@ alter table public.sms_messages enable row level security;
 
 revoke all on table public.sms_messages from anon, authenticated;
 grant all on table public.sms_messages to service_role;
+
+-- One poll answers at a time per owner. Polls overlap, and two answering at
+-- once would let a follow-up ("undo") run before the reply it refers to, and
+-- the tool log that names its task, is saved. holder is the poll's own token,
+-- so a poll whose lease lapsed cannot release one another poll now holds.
+create table public.sms_poll_leases (
+  user_id uuid primary key not null,
+  holder uuid not null,
+  held_until timestamp with time zone not null,
+  constraint sms_poll_leases_user_id_profiles_id_fk foreign key (user_id)
+    references public.profiles (id) on delete cascade
+);
+
+alter table public.sms_poll_leases enable row level security;
+
+revoke all on table public.sms_poll_leases from anon, authenticated;
+grant all on table public.sms_poll_leases to service_role;

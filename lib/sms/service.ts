@@ -1,7 +1,9 @@
-import { and, desc, eq, gte, ne } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+import { and, desc, eq, gte, lt, ne, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
-import { smsMessages } from "@/lib/db/schema";
+import { smsMessages, smsPollLeases } from "@/lib/db/schema";
 
 import { truncateSms, truncateToolLog } from "./limits";
 import type { ConversationStore, HistoryTurn } from "./types";
@@ -78,5 +80,30 @@ export class SmsConversationService implements ConversationStore {
       .limit(HISTORY_LIMIT);
 
     return rows.reverse();
+  }
+
+  async acquirePollLease(userId: string, ttlMs: number) {
+    const holder = randomUUID();
+    // The database clock decides expiry, so every poll agrees on it.
+    const heldUntil = sql`now() + ${`${ttlMs} milliseconds`}::interval`;
+    const [lease] = await this.db
+      .insert(smsPollLeases)
+      .values({ userId, holder, heldUntil })
+      .onConflictDoUpdate({
+        target: smsPollLeases.userId,
+        set: { holder, heldUntil },
+        setWhere: lt(smsPollLeases.heldUntil, sql`now()`),
+      })
+      .returning({ holder: smsPollLeases.holder });
+    return lease?.holder ?? null;
+  }
+
+  async releasePollLease(userId: string, token: string) {
+    await this.db
+      .update(smsPollLeases)
+      .set({ heldUntil: sql`now()` })
+      .where(
+        and(eq(smsPollLeases.userId, userId), eq(smsPollLeases.holder, token)),
+      );
   }
 }
