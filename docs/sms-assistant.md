@@ -16,7 +16,9 @@ verified contacts. Texts are therefore pulled, not pushed.
 
 `GET` or `POST /api/internal/sendblue/poll`, with
 `Authorization: Bearer <MAINTENANCE_SECRET>`, is called every minute by a
-scheduler.
+scheduler. It answers `202` at once and polls in the background, since
+answering texts can outlast a scheduler's request timeout (30 seconds on
+cron-job.org).
 
 1. It lists the owner's inbound texts to `SENDBLUE_FROM_NUMBER` from the last
    15 minutes. Rows are re-checked locally for direction, sender, line, and
