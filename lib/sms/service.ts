@@ -3,15 +3,15 @@ import { and, desc, eq, gte, ne } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import { smsMessages } from "@/lib/db/schema";
 
-import type { HistoryTurn } from "./agent";
 import { truncateSms, truncateToolLog } from "./limits";
+import type { ConversationStore, HistoryTurn } from "./types";
 
 // Enough to resolve "that one" or "undo" a few texts later, without dragging a
 // stale conversation from yesterday into today's requests.
 const HISTORY_LIMIT = 12;
 const HISTORY_WINDOW_MS = 12 * 60 * 60 * 1000;
 
-export class SmsConversationService {
+export class SmsConversationService implements ConversationStore {
   constructor(private readonly db: Database) {}
 
   /**

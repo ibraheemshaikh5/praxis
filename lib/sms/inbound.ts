@@ -1,8 +1,9 @@
-import type { HistoryTurn, MessageCreator } from "./agent";
+import type { MessageCreator } from "./agent";
 import { runSmsAgent } from "./agent";
 import type { AssistantConfig, TwilioConfig } from "./config";
 import type { PlannerOperations } from "./tools";
 import { isValidTwilioSignature } from "./twilio";
+import type { ConversationStore } from "./types";
 
 export const FAILURE_REPLY =
   "Something went wrong. Check the planner before trying again.";
@@ -37,16 +38,6 @@ export function screenInbound(
   }
   return { kind: "accepted", providerSid, body };
 }
-
-export type ConversationStore = {
-  recentHistory(userId: string, excludeId: string): Promise<HistoryTurn[]>;
-  recordOutbound(
-    userId: string,
-    providerSid: string | null,
-    body: string,
-    toolLog: string | null,
-  ): Promise<unknown>;
-};
 
 /** Delivers a reply to the owner; returns the provider's id for it. */
 export type ReplySender = (

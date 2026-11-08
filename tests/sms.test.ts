@@ -684,6 +684,7 @@ describe("replying to a text", () => {
     const { planner } = fakePlanner();
     const fetchImpl = twilioFetch();
     const conversation = {
+      recordInbound: vi.fn(async () => null),
       recentHistory: vi.fn(async () => []),
       recordOutbound: vi.fn(async () => ({})),
     };
@@ -728,6 +729,7 @@ describe("replying to a text", () => {
     const { planner } = fakePlanner();
     const fetchImpl = twilioFetch();
     const conversation = {
+      recordInbound: vi.fn(async () => null),
       recentHistory: vi.fn(async () => []),
       recordOutbound: vi.fn(async () => ({})),
     };
