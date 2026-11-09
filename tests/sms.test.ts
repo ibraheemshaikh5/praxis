@@ -4,10 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { ConflictError } from "@/lib/daily-planner/errors";
 import { REPLIES, runSmsAgent, type MessageCreator } from "@/lib/sms/agent";
 import { readAssistantConfig, type AssistantConfig } from "@/lib/sms/config";
+import {
+  firecrawlPostingReader,
+  type JobPosting,
+  type PostingReader,
+} from "@/lib/sms/firecrawl";
 import { SMS_MAX_LENGTH, truncateSms } from "@/lib/sms/limits";
 import {
   plannerTools,
   runPlannerTool,
+  type ApplicationOperations,
   type PlannerOperations,
   type ToolContext,
 } from "@/lib/sms/tools";
@@ -33,6 +39,7 @@ const ASSISTANT: AssistantConfig = {
   ownerPhone: "+15551234567",
   ownerUserId: USER_ID,
   model: undefined,
+  firecrawlApiKey: undefined,
   sendblue: {
     apiKey: "sb-key",
     apiSecret: "sb-secret",
@@ -53,8 +60,13 @@ describe("configuration", () => {
       readAssistantConfig({
         ...ENVIRONMENT,
         SMS_AGENT_MODEL: "claude-sonnet-5-5",
+        FIRECRAWL_API_KEY: "fc-key",
       }),
-    ).toEqual({ ...ASSISTANT, model: "claude-sonnet-5-5" });
+    ).toEqual({
+      ...ASSISTANT,
+      model: "claude-sonnet-5-5",
+      firecrawlApiKey: "fc-key",
+    });
   });
 
   it("is null unless every required variable is valid", () => {
@@ -216,6 +228,7 @@ function fakePlanner() {
     planner,
     context: {
       planner: planner as unknown as PlannerOperations,
+      applications: {} as ApplicationOperations,
       userId: USER_ID,
       timeZone: "America/New_York",
     } satisfies ToolContext,
@@ -233,6 +246,7 @@ describe("planner tools", () => {
       "schedule_task",
       "reorder_day",
       "delete_task",
+      "add_application",
       "restore_task",
     ]);
     for (const tool of plannerTools) {
@@ -390,6 +404,243 @@ function scriptedClient(responses: Anthropic.Beta.BetaMessage[]) {
   };
   return { client, requests };
 }
+
+type FakeApplication = Awaited<ReturnType<ApplicationOperations["create"]>>;
+
+/** An in-memory tracker, with a posting reader that answers per link. */
+function fakeTracker(postings: Record<string, JobPosting | Error> = {}) {
+  const tracked: FakeApplication[] = [
+    {
+      applicationNumber: 1,
+      cycle: "S27",
+      company: "Stripe",
+      title: "Software Engineer Intern",
+      notes: "https://stripe.com/jobs/1",
+      appliedOn: "2026-11-01",
+    },
+  ];
+  const readPosting = vi.fn<PostingReader>(async (url) => {
+    const posting = postings[url];
+    if (!posting) throw new Error(`unexpected read of ${url}`);
+    if (posting instanceof Error) throw posting;
+    return posting;
+  });
+  const applications = {
+    list: vi.fn(async () => ({ cycle: "S27", applications: tracked })),
+    create: vi.fn(
+      async (
+        _userId: string,
+        input: Parameters<ApplicationOperations["create"]>[1],
+      ) => {
+        const application = {
+          applicationNumber: tracked.length + 1,
+          cycle: "S27",
+          company: input.company,
+          title: input.title,
+          notes: input.notes ?? null,
+          appliedOn: input.appliedOn,
+        };
+        tracked.push(application);
+        return application;
+      },
+    ),
+    readPosting,
+  };
+  const context: ToolContext = {
+    ...fakePlanner().context,
+    applications,
+    now: () => new Date("2026-11-09T15:00:00Z"),
+  };
+  return { applications, context, readPosting, tracked };
+}
+
+describe("application tool", () => {
+  const LINK = "https://jobs.example.com/figma/123";
+
+  it("reads the company and title from the link and logs it for today", async () => {
+    const { context, applications } = fakeTracker({
+      [LINK]: { company: "Figma", title: "Product Design Intern" },
+    });
+    const outcome = await runPlannerTool(context, "add_application", {
+      url: LINK,
+    });
+    expect(outcome.isError).toBe(false);
+    expect(JSON.parse(outcome.content)).toEqual({
+      number: 2,
+      cycle: "S27",
+      company: "Figma",
+      title: "Product Design Intern",
+      applied_on: "2026-11-09",
+    });
+    expect(applications.create).toHaveBeenCalledWith(USER_ID, {
+      company: "Figma",
+      title: "Product Design Intern",
+      appliedOn: "2026-11-09",
+      notes: LINK,
+    });
+  });
+
+  it("lets details stated in the text fill in or override the posting", async () => {
+    const { context, applications, readPosting } = fakeTracker({
+      [LINK]: { company: "Figma", title: null },
+    });
+    await runPlannerTool(context, "add_application", {
+      url: LINK,
+      title: "Design Intern",
+      notes: "referral from sam",
+    });
+    expect(readPosting).toHaveBeenCalledOnce();
+    expect(applications.create.mock.calls[0][1]).toMatchObject({
+      company: "Figma",
+      title: "Design Intern",
+      notes: `referral from sam\n${LINK}`,
+    });
+
+    // With both stated, the page is not read at all.
+    await runPlannerTool(context, "add_application", {
+      url: "https://jobs.example.com/other",
+      company: "Notion",
+      title: "SWE Intern",
+    });
+    expect(readPosting).toHaveBeenCalledOnce();
+  });
+
+  it("does not log the same application twice", async () => {
+    const { context, applications } = fakeTracker({
+      "https://stripe.com/jobs/1": { company: "Stripe", title: "Other" },
+    });
+    for (const input of [
+      { url: "https://stripe.com/jobs/1", company: "x", title: "y" },
+      { company: "stripe", title: "software engineer intern" },
+    ]) {
+      const outcome = await runPlannerTool(context, "add_application", input);
+      expect(JSON.parse(outcome.content)).toMatchObject({
+        number: 1,
+        already_tracked: true,
+      });
+    }
+    expect(applications.create).not.toHaveBeenCalled();
+  });
+
+  it("asks for what the posting does not say, or when it cannot be read", async () => {
+    const { PostingUnreadableError } = await import("@/lib/sms/firecrawl");
+    const broken = "https://jobs.example.com/broken";
+    const { context, applications } = fakeTracker({
+      [LINK]: { company: "Figma", title: null },
+      [broken]: new PostingUnreadableError(
+        "Firecrawl answered 500 for the posting",
+      ),
+    });
+
+    const partial = await runPlannerTool(context, "add_application", {
+      url: LINK,
+    });
+    expect(partial).toEqual({
+      isError: true,
+      content: "The posting doesn't say the job title; ask for it",
+    });
+
+    const unreadable = await runPlannerTool(context, "add_application", {
+      url: broken,
+    });
+    expect(unreadable).toEqual({
+      isError: true,
+      content: "Firecrawl answered 500 for the posting",
+    });
+
+    const nothing = await runPlannerTool(context, "add_application", {});
+    expect(nothing.isError).toBe(true);
+    expect(applications.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a link alone when no reader is configured", async () => {
+    const { context } = fakeTracker();
+    const outcome = await runPlannerTool(
+      {
+        ...context,
+        applications: { ...context.applications, readPosting: undefined },
+      },
+      "add_application",
+      { url: LINK },
+    );
+    expect(outcome).toEqual({
+      isError: true,
+      content: "Links can't be read here; ask for the company and job title",
+    });
+  });
+
+  it("rejects a link that is not http(s)", async () => {
+    const { context } = fakeTracker();
+    const outcome = await runPlannerTool(context, "add_application", {
+      url: "javascript:alert(1)",
+    });
+    expect(outcome.isError).toBe(true);
+  });
+});
+
+describe("firecrawl posting reader", () => {
+  const LINK = "https://jobs.example.com/figma/123";
+
+  it("asks Firecrawl for the company and title and tidies them", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        success: true,
+        data: {
+          json: { company: "  Figma ", title: "Product\n Design   Intern" },
+        },
+      }),
+    );
+    const read = firecrawlPostingReader("fc-key", fetchImpl);
+    expect(await read(LINK)).toEqual({
+      company: "Figma",
+      title: "Product Design Intern",
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.firecrawl.dev/v2/scrape");
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
+      "Bearer fc-key",
+    );
+    const body = JSON.parse(String(init?.body));
+    expect(body.url).toBe(LINK);
+    expect(body.formats[0]).toMatchObject({ type: "json" });
+    expect(body.formats[0].schema.properties).toHaveProperty("company");
+  });
+
+  it("reads missing fields as null", async () => {
+    const read = firecrawlPostingReader("fc-key", async () =>
+      Response.json({
+        success: true,
+        data: { json: { company: "", title: null } },
+      }),
+    );
+    expect(await read(LINK)).toEqual({ company: null, title: null });
+  });
+
+  it("fails readably on an error status, a bad body, or a network failure", async () => {
+    const cases: Array<[typeof fetch, string]> = [
+      [
+        async () => new Response("nope", { status: 402 }),
+        "Firecrawl answered 402 for the posting",
+      ],
+      [
+        async () => Response.json({ success: false }),
+        "Firecrawl returned no posting details",
+      ],
+      [
+        async () => {
+          throw new TypeError("fetch failed");
+        },
+        "Could not reach the posting: fetch failed",
+      ],
+    ];
+    for (const [fetchImpl, message] of cases) {
+      await expect(
+        firecrawlPostingReader("fc-key", fetchImpl)(LINK),
+      ).rejects.toThrow(message);
+    }
+  });
+});
 
 describe("sms agent", () => {
   const now = new Date("2026-11-08T14:30:00Z");

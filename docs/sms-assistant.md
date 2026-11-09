@@ -1,8 +1,9 @@
 # SMS Assistant
 
-Texting a Sendblue line reads and changes the daily planner. Claude interprets
-each text with tools that wrap `DailyPlannerService`, and the reply is sent
-back from the line.
+Texting a Sendblue line reads and changes the daily planner and logs job
+applications. Claude interprets each text with tools that wrap
+`DailyPlannerService` and the application tracker, and the reply is sent back
+from the line.
 
 The assistant acts for exactly one planner owner, `SMS_OWNER_USER_ID`, and
 only on texts from `SMS_OWNER_PHONE`. There is no sign-in on this path, so the
@@ -54,6 +55,14 @@ own time.
   it is re-read after 400 ms and 1 s before concluding the task counts toward
   no goal. Both reads are skipped when the task is already in that state or
   there are no goals. `get_goals` reads progress on request.
+- `add_application` logs a sent application. Given a link, Firecrawl reads the
+  company and job title from the posting (JSON extraction, 25 s timeout);
+  either one stated in the text wins over the page. The link is stored in the
+  application's notes, and an application with the same link, or the same
+  company and title, in the cycle is reported as already tracked rather than
+  added again. It is filed in `APPLICATIONS_CYCLE`, dated today unless the
+  text says otherwise, and mirrored to the spreadsheet like one created in
+  the web app. There is no SMS undo for applications.
 - Replies are capped at 1,600 characters.
 - The model is `claude-opus-5-5` at low effort with server-side refusal
   fallback. `SMS_AGENT_MODEL` overrides the model.
@@ -70,6 +79,7 @@ own time.
 | `SENDBLUE_API_SECRET` | API secret |
 | `SENDBLUE_FROM_NUMBER` | The Sendblue line the owner texts, E.164 |
 | `SMS_AGENT_MODEL` | Optional model override |
+| `FIRECRAWL_API_KEY` | Optional; without it a link alone can't be logged |
 
 With any required variable missing or malformed the poll route returns
 `503 SMS_NOT_CONFIGURED` and records nothing.

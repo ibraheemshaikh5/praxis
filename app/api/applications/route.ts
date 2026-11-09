@@ -4,12 +4,8 @@ import {
   applicationsQuerySchema,
   createApplicationSchema,
 } from "@/lib/applications/contracts";
+import { createAndSyncApplication } from "@/lib/applications/create";
 import { getApplicationsService } from "@/lib/applications/runtime";
-import { DEFAULT_CYCLE } from "@/lib/applications/service";
-import {
-  pushApplicationToSheet,
-  reconcileBeforeCreate,
-} from "@/lib/applications/sync";
 import {
   jsonCreated,
   parseJson,
@@ -36,18 +32,7 @@ export async function POST(request: Request) {
   try {
     const userId = await requireAuthenticatedUserId();
     const input = await parseJson(request, createApplicationSchema);
-    const service = getApplicationsService();
-
-    // Repair the tab's numbering first, so this application cannot take a
-    // number an existing unnumbered row is entitled to.
-    await reconcileBeforeCreate(userId, input.cycle ?? DEFAULT_CYCLE);
-
-    // Postgres commits first; the spreadsheet is a best-effort mirror.
-    const created = await service.createApplication(userId, input);
-    const outcome = await pushApplicationToSheet(userId, created);
-    const application = outcome
-      ? await service.markSheetSync(userId, created.id, outcome)
-      : created;
+    const application = await createAndSyncApplication(userId, input);
 
     return jsonCreated({ application });
   } catch (error) {

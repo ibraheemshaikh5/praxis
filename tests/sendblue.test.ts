@@ -5,7 +5,7 @@ import type { MessageCreator } from "@/lib/sms/agent";
 import type { AssistantConfig } from "@/lib/sms/config";
 import { FAILURE_REPLY, POLL_LOOKBACK_MS, pollSendblue } from "@/lib/sms/poll";
 import { sendblueLine } from "@/lib/sms/sendblue";
-import type { PlannerOperations } from "@/lib/sms/tools";
+import type { ApplicationOperations, PlannerOperations } from "@/lib/sms/tools";
 import type { ConversationStore } from "@/lib/sms/types";
 
 const OWNER = "+15551234567";
@@ -18,6 +18,7 @@ const CONFIG: AssistantConfig = {
   ownerPhone: OWNER,
   ownerUserId: USER_ID,
   model: undefined,
+  firecrawlApiKey: undefined,
   sendblue: { apiKey: "sb-key", apiSecret: "sb-secret", fromNumber: LINE },
 };
 
@@ -223,6 +224,7 @@ function echoClient() {
 }
 
 const planner = {} as PlannerOperations;
+const applications = {} as ApplicationOperations;
 
 describe("sendblue poller", () => {
   it("answers each new text once, in order, across overlapping polls", async () => {
@@ -237,6 +239,7 @@ describe("sendblue poller", () => {
       config: CONFIG,
       conversation: store,
       planner,
+      applications,
       client,
       timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -277,6 +280,7 @@ describe("sendblue poller", () => {
           config: CONFIG,
           conversation: store,
           planner,
+          applications,
           client,
           timeZone,
           line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -299,6 +303,7 @@ describe("sendblue poller", () => {
       config: CONFIG,
       conversation: store,
       planner,
+      applications,
       client,
       timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -335,6 +340,7 @@ describe("sendblue poller", () => {
         config: CONFIG,
         conversation: failing,
         planner,
+        applications,
         client,
         timeZone: async () => "America/New_York",
         line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -365,6 +371,7 @@ describe("sendblue poller", () => {
           config: CONFIG,
           conversation: store,
           planner,
+          applications,
           client,
           timeZone: async () => "America/New_York",
           line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -389,6 +396,7 @@ describe("sendblue poller", () => {
       config: CONFIG,
       conversation: store,
       planner,
+      applications,
       client,
       timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -414,6 +422,7 @@ describe("sendblue poller", () => {
         config: CONFIG,
         conversation: store,
         planner,
+        applications,
         client,
         timeZone: async () => "America/New_York",
         line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),
@@ -438,6 +447,7 @@ describe("sendblue poller", () => {
       config: CONFIG,
       conversation: store,
       planner,
+      applications,
       client,
       timeZone: async () => "America/New_York",
       line: sendblueLine(CONFIG.sendblue, OWNER, fetchImpl),

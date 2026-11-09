@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import type { CreateApplicationInput } from "@/lib/applications/contracts";
 import {
   createTaskSchema,
   plannerRangeQuerySchema,
@@ -14,7 +15,9 @@ import {
   ValidationError,
 } from "@/lib/daily-planner/errors";
 import type { DailyPlannerService } from "@/lib/daily-planner/service";
+import type { Application } from "@/lib/db/schema";
 
+import { PostingUnreadableError, type PostingReader } from "./firecrawl";
 import { settledGoalChanges, summarizeGoals } from "./goals";
 import { clockTimeIn, dateIn, timeBlockOn, todayIn } from "./local-time";
 
@@ -34,8 +37,27 @@ export type PlannerOperations = Pick<
   | "listMetrics"
 >;
 
+type TrackedApplication = Pick<
+  Application,
+  "applicationNumber" | "cycle" | "company" | "title" | "notes" | "appliedOn"
+>;
+
+/** The application tracker operations the SMS agent is allowed to perform. */
+export type ApplicationOperations = {
+  list(
+    userId: string,
+  ): Promise<{ cycle: string; applications: TrackedApplication[] }>;
+  create(
+    userId: string,
+    input: CreateApplicationInput,
+  ): Promise<TrackedApplication>;
+  /** Absent when no Firecrawl key is configured. */
+  readPosting?: PostingReader;
+};
+
 export type ToolContext = {
   planner: PlannerOperations;
+  applications: ApplicationOperations;
   userId: string;
   timeZone: string;
   /** Overridable for tests; defaults to the clock and a real timer. */
@@ -116,6 +138,33 @@ const getGoalsInput = z.object({
     .describe(
       "Also return counts for the seven periods before the current one",
     ),
+});
+
+const addApplicationInput = z.object({
+  url: z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), "Expected an http(s) link")
+    .optional()
+    .describe("Link to the job posting"),
+  company: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("Only when the text names it; otherwise read from the link"),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      "Job title. Only when the text names it; otherwise read from the link",
+    ),
+  applied_on: calendarDate.optional().describe("Defaults to today"),
+  notes: z.string().max(4000).optional(),
 });
 
 type ToolSpec<T> = {
@@ -240,6 +289,12 @@ const TOOL_SPECS: Record<string, ToolSpec<unknown>> = {
         return { task_id: task.id, title: task.title, deleted: true };
       }),
   }),
+  add_application: tool({
+    description:
+      "Log a job application the owner has sent. Given a link, the company and job title are read from the posting; pass company or title only to fill in or correct what the posting says. An application already tracked under the same link, or the same company and title, is not added again.",
+    input: addApplicationInput,
+    run: (context, input) => addApplication(context, input),
+  }),
   restore_task: tool({
     description: "Bring back a task deleted in the last 30 days.",
     input: taskOnlyInput,
@@ -296,7 +351,10 @@ export async function runPlannerTool(
     const result = await spec.run(context, parsed.data);
     return { content: JSON.stringify(result), isError: false };
   } catch (error) {
-    if (error instanceof PlannerError) {
+    if (
+      error instanceof PlannerError ||
+      error instanceof PostingUnreadableError
+    ) {
       return { content: error.message, isError: true };
     }
     if (error instanceof z.ZodError) {
@@ -365,6 +423,72 @@ async function setTaskDone(
     title: task.title,
     done: input.done,
     goal_changes: goalChanges,
+  };
+}
+
+/**
+ * Records an application, reading the company and title from the posting
+ * when the text gives a link. Details stated in the text win over the page.
+ * The link is kept in the notes, which is also how a repeat is recognised.
+ */
+async function addApplication(
+  context: ToolContext,
+  input: z.infer<typeof addApplicationInput>,
+) {
+  const { applications, userId } = context;
+  let { company, title } = input;
+
+  if ((!company || !title) && input.url) {
+    if (!applications.readPosting) {
+      throw new ValidationError(
+        "Links can't be read here; ask for the company and job title",
+      );
+    }
+    const posting = await applications.readPosting(input.url);
+    company ??= posting.company ?? undefined;
+    title ??= posting.title ?? undefined;
+  }
+
+  if (!company || !title) {
+    const missing = [!company && "company", !title && "job title"]
+      .filter(Boolean)
+      .join(" and ");
+    throw new ValidationError(
+      input.url
+        ? `The posting doesn't say the ${missing}; ask for it`
+        : `Provide a link or the ${missing}`,
+    );
+  }
+
+  const { applications: tracked } = await applications.list(userId);
+  const same = (a: string, b: string) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }) === 0;
+  const existing = tracked.find(
+    (application) =>
+      (input.url && application.notes?.includes(input.url)) ||
+      (same(application.company, company) && same(application.title, title)),
+  );
+  if (existing) {
+    return { ...describeApplication(existing), already_tracked: true };
+  }
+
+  const notes = [input.notes?.trim(), input.url].filter(Boolean).join("\n");
+  const created = await applications.create(userId, {
+    company,
+    title,
+    appliedOn: input.applied_on ?? today(context),
+    notes: notes || null,
+  });
+  return describeApplication(created);
+}
+
+function describeApplication(application: TrackedApplication) {
+  return {
+    number: application.applicationNumber,
+    cycle: application.cycle,
+    company: application.company,
+    title: application.title,
+    applied_on: application.appliedOn,
   };
 }
 

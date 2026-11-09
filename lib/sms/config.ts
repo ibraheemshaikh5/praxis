@@ -9,6 +9,8 @@ export type AssistantConfig = {
   ownerPhone: string;
   ownerUserId: string;
   model: string | undefined;
+  /** Reads job postings from links; without it a link alone can't be logged. */
+  firecrawlApiKey: string | undefined;
   sendblue: SendblueCredentials;
 };
 
@@ -25,6 +27,7 @@ const environmentSchema = z.object({
   SMS_OWNER_PHONE: e164,
   SMS_OWNER_USER_ID: z.string().uuid(),
   SMS_AGENT_MODEL: z.string().min(1).optional(),
+  FIRECRAWL_API_KEY: z.string().min(1).optional(),
   SENDBLUE_API_KEY: z.string().min(1),
   SENDBLUE_API_SECRET: z.string().min(1),
   SENDBLUE_FROM_NUMBER: e164,
@@ -52,6 +55,7 @@ export function readAssistantConfig(
     ownerPhone: env.SMS_OWNER_PHONE,
     ownerUserId: env.SMS_OWNER_USER_ID,
     model: env.SMS_AGENT_MODEL,
+    firecrawlApiKey: env.FIRECRAWL_API_KEY,
     sendblue: {
       apiKey: env.SENDBLUE_API_KEY,
       apiSecret: env.SENDBLUE_API_SECRET,
