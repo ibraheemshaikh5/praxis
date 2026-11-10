@@ -1,7 +1,7 @@
 import { runSmsAgent, type MessageCreator } from "./agent";
 import type { AssistantConfig } from "./config";
 import type { SendblueLine } from "./sendblue";
-import type { PlannerOperations } from "./tools";
+import type { ApplicationOperations, PlannerOperations } from "./tools";
 import type { ConversationStore } from "./types";
 
 export const FAILURE_REPLY =
@@ -34,6 +34,7 @@ export type PollDeps = {
   line: SendblueLine;
   conversation: ConversationStore;
   planner: PlannerOperations;
+  applications: ApplicationOperations;
   client: MessageCreator;
   /** The owner's profile time zone, looked up only when a text needs it. */
   timeZone: () => Promise<string>;
@@ -119,7 +120,12 @@ async function answer(
     ({ reply, toolLog } = await runSmsAgent({
       client: deps.client,
       model: config.model,
-      context: { planner: deps.planner, userId, timeZone },
+      context: {
+        planner: deps.planner,
+        applications: deps.applications,
+        userId,
+        timeZone,
+      },
       history,
       text: inbound.text,
       ...timing,

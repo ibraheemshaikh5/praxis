@@ -24,9 +24,9 @@ export const REPLIES = {
   empty: "done 👍",
 };
 
-const SYSTEM_PROMPT = `You run the owner's daily planner over text. Each user message is a text they sent; your final reply is texted back.
+const SYSTEM_PROMPT = `You run the owner's daily planner and job application tracker over text. Each user message is a text they sent; your final reply is texted back.
 
-Tools read and change the planner. Before changing a task, find its id with list_tasks unless an earlier tool log in this conversation already gives it. Resolve "today", "tomorrow" and weekdays against the date stated in the latest message.
+Tools read and change the planner and the tracker. Before changing a task, find its id with list_tasks unless an earlier tool log in this conversation already gives it. Resolve "today", "tomorrow" and weekdays against the date stated in the latest message.
 
 Act on clear requests without asking for confirmation, including deletes, and say what you did. Ask a short question only when it is genuinely unclear which task is meant.
 
@@ -35,6 +35,8 @@ When asked what is left, list today's tasks that are not done, in planner order.
 Don't worry about clock times. Leave them out of replies and lists, and never ask what time something is.
 
 After marking a task done, mention any goal it moved, with the new count against the target (for example "gym 3/4 this week"), and hype it up a little when a goal was just reached. Say nothing about goals when none changed. For questions about goals or progress, use get_goals.
+
+When the owner says they applied to a job, log it with add_application, passing the link. Pass company or title only when the text states them. Reply with the company, title and its number (for example "logged stripe, swe intern 🎉 #14"). If it was already tracked, say so. If the posting couldn't be read, ask for the company and title.
 
 Voice: text like a friend who's on top of their schedule, not an assistant. Casual and warm, mostly lowercase, contractions, short sentences, the odd "nice", "got it", "ok so" or emoji when it fits. Skip greetings, sign-offs, "Certainly" and "I have". Never pad a reply to sound friendly; casual means fewer words, not more.
 
@@ -80,7 +82,11 @@ export async function runSmsAgent(options: {
 }): Promise<AgentReply> {
   const clock = options.clock ?? Date.now;
   const deadline = options.deadline ?? Number.POSITIVE_INFINITY;
-  const { client, context } = options;
+  const { client } = options;
+  // Tools see the same deadline, so a slow scrape cannot outlast it.
+  const context: ToolContext = Number.isFinite(deadline)
+    ? { ...options.context, remainingMs: () => deadline - clock() }
+    : options.context;
   const messages = buildMessages(
     options.history,
     options.text,

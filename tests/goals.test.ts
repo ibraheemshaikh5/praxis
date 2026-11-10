@@ -161,6 +161,7 @@ function goalPlanner(options: {
   const sleep = vi.fn(async () => {});
   const context: ToolContext = {
     planner: planner as unknown as PlannerOperations,
+    applications: {} as ToolContext["applications"],
     userId: USER_ID,
     timeZone: "America/New_York",
     // 2026-11-09 03:00 UTC is still the evening of 8 November in New York.

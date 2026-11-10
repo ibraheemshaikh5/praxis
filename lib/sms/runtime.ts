@@ -2,16 +2,24 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { createAndSyncApplication } from "@/lib/applications/create";
+import { getApplicationsService } from "@/lib/applications/runtime";
+import { DEFAULT_CYCLE } from "@/lib/applications/service";
+import { reconcileBeforeCreate } from "@/lib/applications/sync";
 import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
 import { getDatabaseClient } from "@/lib/db/client";
 import { getProfileTimeZone } from "@/lib/planner/profile";
 
 import type { AssistantConfig } from "./config";
+import { firecrawlPostingReader } from "./firecrawl";
 import type { PollDeps } from "./poll";
 import { sendblueLine } from "./sendblue";
 import { SmsConversationService } from "./service";
 
-/** Wires the poller to Sendblue, the database, the planner and Claude. */
+/**
+ * Wires the poller to Sendblue, the database, the planner, the application
+ * tracker, Firecrawl and Claude.
+ */
 export function createPollDeps(config: AssistantConfig): PollDeps {
   let timeZone: Promise<string> | undefined;
   return {
@@ -19,6 +27,17 @@ export function createPollDeps(config: AssistantConfig): PollDeps {
     line: sendblueLine(config.sendblue, config.ownerPhone),
     conversation: new SmsConversationService(getDatabaseClient().db),
     planner: getDailyPlannerService(),
+    applications: {
+      list: async (userId, signal) => {
+        await reconcileBeforeCreate(userId, DEFAULT_CYCLE, signal);
+        return getApplicationsService().listApplications(userId, {});
+      },
+      create: (userId, input, signal) =>
+        createAndSyncApplication(userId, input, { signal, reconciled: true }),
+      readPosting: config.firecrawlApiKey
+        ? firecrawlPostingReader(config.firecrawlApiKey)
+        : undefined,
+    },
     // Reads ANTHROPIC_API_KEY from the environment.
     client: new Anthropic().beta.messages,
     // A quiet poll answers nothing, so it never queries the profile.

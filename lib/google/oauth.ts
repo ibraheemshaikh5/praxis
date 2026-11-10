@@ -2,6 +2,8 @@ import "server-only";
 
 import { GoogleSyncError } from "./errors";
 
+import { googleRequestSignal } from "./request-signal";
+
 const AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
@@ -76,17 +78,24 @@ export async function exchangeAuthorizationCode(
   };
 }
 
-export async function getAccessToken(userId: string, refreshToken: string) {
+export async function getAccessToken(
+  userId: string,
+  refreshToken: string,
+  signal?: AbortSignal,
+) {
   const cache = (globalThis.praxisGoogleAccessTokens ??= new Map());
   const cached = cache.get(userId);
   if (cached && cached.expiresAt > Date.now()) return cached.accessToken;
 
-  const payload = await postToken({
-    client_id: requireEnvironment("GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret: requireEnvironment("GOOGLE_OAUTH_CLIENT_SECRET"),
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
+  const payload = await postToken(
+    {
+      client_id: requireEnvironment("GOOGLE_OAUTH_CLIENT_ID"),
+      client_secret: requireEnvironment("GOOGLE_OAUTH_CLIENT_SECRET"),
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    },
+    signal,
+  );
 
   cache.set(userId, {
     accessToken: payload.access_token,
@@ -109,7 +118,7 @@ type TokenResponse = {
   id_token?: string;
 };
 
-async function postToken(body: Record<string, string>) {
+async function postToken(body: Record<string, string>, signal?: AbortSignal) {
   let response: Response;
 
   try {
@@ -117,6 +126,7 @@ async function postToken(body: Record<string, string>) {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(body),
+      signal: googleRequestSignal(signal),
     });
   } catch {
     throw new GoogleSyncError("Could not reach Google to exchange the token");

@@ -27,6 +27,7 @@ type SheetsContext = {
 
 export async function resolveSheetsContext(
   userId: string,
+  signal?: AbortSignal,
 ): Promise<SheetsContext | null> {
   const service = getApplicationsService();
   const connection = await service.getConnection(userId);
@@ -43,10 +44,11 @@ export async function resolveSheetsContext(
   const accessToken = await getAccessToken(
     userId,
     decryptRefreshToken(connection.refreshTokenCiphertext),
+    signal,
   );
 
   return {
-    client: new SheetsClient(accessToken, spreadsheetId),
+    client: new SheetsClient(accessToken, spreadsheetId, signal),
     spreadsheetId,
   };
 }
@@ -97,9 +99,13 @@ export async function reconcileNumbering(
  * that only exist in the sheet. Best effort — a Google outage must not stop the
  * owner from logging an application.
  */
-export async function reconcileBeforeCreate(userId: string, cycle: string) {
+export async function reconcileBeforeCreate(
+  userId: string,
+  cycle: string,
+  signal?: AbortSignal,
+) {
   try {
-    const context = await resolveSheetsContext(userId);
+    const context = await resolveSheetsContext(userId, signal);
     if (!context) return;
 
     const { rows, headerMap } = await reconcileNumbering(
@@ -128,9 +134,10 @@ export async function reconcileBeforeCreate(userId: string, cycle: string) {
 export async function pushApplicationToSheet(
   userId: string,
   application: Application,
+  signal?: AbortSignal,
 ): Promise<SheetSyncOutcome | null> {
   try {
-    const context = await resolveSheetsContext(userId);
+    const context = await resolveSheetsContext(userId, signal);
     if (!context) return null;
 
     const tab = application.cycle;

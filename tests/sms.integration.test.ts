@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { ApplicationsService } from "@/lib/applications/service";
 import { DailyPlannerService } from "@/lib/daily-planner/service";
 import { SmsConversationService } from "@/lib/sms/service";
 import { runPlannerTool, type ToolContext } from "@/lib/sms/tools";
@@ -13,8 +14,15 @@ describeDatabase("sms assistant database integration", () => {
   const { db } = useTestDatabase([OWNER, OTHER]);
   const planner = new DailyPlannerService(db);
   const conversation = new SmsConversationService(db);
+  const tracker = new ApplicationsService(db);
   const context: ToolContext = {
     planner,
+    // The real tracker without the spreadsheet mirror, which needs Google.
+    applications: {
+      list: (userId) => tracker.listApplications(userId, {}),
+      create: (userId, input) => tracker.createApplication(userId, input),
+      readPosting: async () => ({ company: "Figma", title: "Design Intern" }),
+    },
     userId: OWNER,
     timeZone: "America/New_York",
   };
@@ -249,5 +257,30 @@ describeDatabase("sms assistant database integration", () => {
       },
     ]);
     expect(await conversation.recentHistory(OTHER, second!.id)).toEqual([]);
+  });
+
+  it("logs an application from a link once, numbered in its cycle", async () => {
+    const link = "https://jobs.example.com/figma/1";
+    const logged = await call("add_application", {
+      url: link,
+      applied_on: DAY,
+    });
+    expect(logged).toMatchObject({
+      number: 1,
+      company: "Figma",
+      title: "Design Intern",
+      applied_on: DAY,
+    });
+    expect(await call("add_application", { url: link })).toMatchObject({
+      number: 1,
+      already_tracked: true,
+    });
+
+    const { applications } = await tracker.listApplications(OWNER, {});
+    expect(applications).toHaveLength(1);
+    expect(applications[0].notes).toBe(link);
+    expect((await tracker.listApplications(OTHER, {})).applications).toEqual(
+      [],
+    );
   });
 });
