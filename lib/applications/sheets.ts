@@ -3,6 +3,7 @@ import { GoogleSyncError } from "@/lib/google/errors";
 
 import { formatStatusLabel, parseStatusLabel } from "./status";
 import type { ApplicationStatus } from "./status";
+import { googleRequestSignal } from "@/lib/google/request-signal";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 // Wide enough for any realistic tracker sheet without paging.
@@ -122,7 +123,9 @@ export function sheetStatusLabel(
 }
 
 /** Every mapped column, blanked — how a deleted application's row is cleared. */
-export function clearedCells(headerMap: SheetHeaderMap): Array<[number, string]> {
+export function clearedCells(
+  headerMap: SheetHeaderMap,
+): Array<[number, string]> {
   return (Object.keys(headerMap) as SheetField[])
     .map((field) => headerMap[field])
     .filter((index): index is number => index !== null)
@@ -294,6 +297,7 @@ export class SheetsClient {
   constructor(
     private readonly accessToken: string,
     private readonly spreadsheetId: string,
+    private readonly signal?: AbortSignal,
   ) {}
 
   async readTab(tab: string): Promise<string[][]> {
@@ -350,6 +354,7 @@ export class SheetsClient {
           ...(init?.body ? { "content-type": "application/json" } : {}),
         },
         body: init?.body ? JSON.stringify(init.body) : undefined,
+        signal: googleRequestSignal(this.signal),
       });
     } catch {
       throw new GoogleSyncError("Could not reach Google Sheets");

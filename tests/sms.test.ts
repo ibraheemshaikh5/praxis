@@ -426,24 +426,22 @@ function fakeTracker(postings: Record<string, JobPosting | Error> = {}) {
     return posting;
   });
   const applications = {
-    list: vi.fn(async () => ({ cycle: "S27", applications: tracked })),
-    create: vi.fn(
-      async (
-        _userId: string,
-        input: Parameters<ApplicationOperations["create"]>[1],
-      ) => {
-        const application = {
-          applicationNumber: tracked.length + 1,
-          cycle: "S27",
-          company: input.company,
-          title: input.title,
-          notes: input.notes ?? null,
-          appliedOn: input.appliedOn,
-        };
-        tracked.push(application);
-        return application;
-      },
-    ),
+    list: vi.fn<ApplicationOperations["list"]>(async () => ({
+      cycle: "S27",
+      applications: tracked,
+    })),
+    create: vi.fn<ApplicationOperations["create"]>(async (_userId, input) => {
+      const application = {
+        applicationNumber: tracked.length + 1,
+        cycle: "S27",
+        company: input.company,
+        title: input.title,
+        notes: input.notes ?? null,
+        appliedOn: input.appliedOn,
+      };
+      tracked.push(application);
+      return application;
+    }),
     readPosting,
   };
   const context: ToolContext = {
@@ -472,12 +470,16 @@ describe("application tool", () => {
       title: "Product Design Intern",
       applied_on: "2026-11-09",
     });
-    expect(applications.create).toHaveBeenCalledWith(USER_ID, {
-      company: "Figma",
-      title: "Product Design Intern",
-      appliedOn: "2026-11-09",
-      notes: LINK,
-    });
+    expect(applications.create).toHaveBeenCalledWith(
+      USER_ID,
+      {
+        company: "Figma",
+        title: "Product Design Intern",
+        appliedOn: "2026-11-09",
+        notes: LINK,
+      },
+      undefined,
+    );
   });
 
   it("lets details stated in the text fill in or override the posting", async () => {
@@ -506,11 +508,11 @@ describe("application tool", () => {
   });
 
   it("does not log the same application twice", async () => {
-    const { context, applications } = fakeTracker({
-      "https://stripe.com/jobs/1": { company: "Stripe", title: "Other" },
-    });
+    // No posting is configured for the saved link: it must not be read.
+    const { context, applications, readPosting } = fakeTracker();
     for (const input of [
-      { url: "https://stripe.com/jobs/1", company: "x", title: "y" },
+      { url: "https://stripe.com/jobs/1" },
+      { url: "https://stripe.com/jobs/1/", company: "x", title: "y" },
       { company: "stripe", title: "software engineer intern" },
     ]) {
       const outcome = await runPlannerTool(context, "add_application", input);
@@ -520,6 +522,56 @@ describe("application tool", () => {
       });
     }
     expect(applications.create).not.toHaveBeenCalled();
+    expect(readPosting).not.toHaveBeenCalled();
+  });
+
+  it("matches whole links, not a link that is part of a saved one", async () => {
+    const prefix = "https://stripe.com/jobs";
+    const { context, applications } = fakeTracker({
+      [prefix]: { company: "Stripe", title: "Data Intern" },
+    });
+    const outcome = await runPlannerTool(context, "add_application", {
+      url: prefix,
+    });
+    expect(JSON.parse(outcome.content)).toMatchObject({
+      number: 2,
+      title: "Data Intern",
+    });
+    expect(applications.create).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an impossible date before it reaches the tracker", async () => {
+    const { context, applications } = fakeTracker();
+    const outcome = await runPlannerTool(context, "add_application", {
+      company: "Notion",
+      title: "SWE Intern",
+      applied_on: "2026-02-30",
+    });
+    expect(outcome.isError).toBe(true);
+    expect(outcome.content).toContain("Invalid calendar date");
+    expect(applications.create).not.toHaveBeenCalled();
+  });
+
+  it("bounds the scrape and the sheet mirror by the time left", async () => {
+    const { context, applications, readPosting } = fakeTracker({
+      [LINK]: { company: "Figma", title: "Design Intern" },
+    });
+    await runPlannerTool(
+      { ...context, remainingMs: () => 5_000 },
+      "add_application",
+      { url: LINK },
+    );
+    const signal = readPosting.mock.calls[0][1];
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(applications.list.mock.calls[0][1]).toBe(signal);
+    expect(applications.create.mock.calls[0][2]).toBe(signal);
+
+    // Without a deadline nothing is cut off.
+    await runPlannerTool(context, "add_application", {
+      company: "Notion",
+      title: "SWE Intern",
+    });
+    expect(applications.create.mock.calls[1][2]).toBeUndefined();
   });
 
   it("asks for what the posting does not say, or when it cannot be read", async () => {
@@ -615,6 +667,16 @@ describe("firecrawl posting reader", () => {
       }),
     );
     expect(await read(LINK)).toEqual({ company: null, title: null });
+  });
+
+  it("stops when the caller's deadline passes", async () => {
+    const read = firecrawlPostingReader("fc-key", async (_url, init) => {
+      init?.signal?.throwIfAborted();
+      return Response.json({ success: true, data: { json: {} } });
+    });
+    await expect(read(LINK, AbortSignal.abort())).rejects.toThrow(
+      "Could not reach the posting: timed out",
+    );
   });
 
   it("fails readably on an error status, a bad body, or a network failure", async () => {

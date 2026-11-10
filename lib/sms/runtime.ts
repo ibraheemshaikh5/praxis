@@ -4,6 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { createAndSyncApplication } from "@/lib/applications/create";
 import { getApplicationsService } from "@/lib/applications/runtime";
+import { DEFAULT_CYCLE } from "@/lib/applications/service";
+import { reconcileBeforeCreate } from "@/lib/applications/sync";
 import { getDailyPlannerService } from "@/lib/daily-planner/runtime";
 import { getDatabaseClient } from "@/lib/db/client";
 import { getProfileTimeZone } from "@/lib/planner/profile";
@@ -26,8 +28,12 @@ export function createPollDeps(config: AssistantConfig): PollDeps {
     conversation: new SmsConversationService(getDatabaseClient().db),
     planner: getDailyPlannerService(),
     applications: {
-      list: (userId) => getApplicationsService().listApplications(userId, {}),
-      create: createAndSyncApplication,
+      list: async (userId, signal) => {
+        await reconcileBeforeCreate(userId, DEFAULT_CYCLE, signal);
+        return getApplicationsService().listApplications(userId, {});
+      },
+      create: (userId, input, signal) =>
+        createAndSyncApplication(userId, input, { signal, reconciled: true }),
       readPosting: config.firecrawlApiKey
         ? firecrawlPostingReader(config.firecrawlApiKey)
         : undefined,

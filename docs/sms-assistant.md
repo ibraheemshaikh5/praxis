@@ -58,9 +58,12 @@ own time.
 - `add_application` logs a sent application. Given a link, Firecrawl reads the
   company and job title from the posting (JSON extraction, 25 s timeout);
   either one stated in the text wins over the page. The link is stored in the
-  application's notes, and an application with the same link, or the same
-  company and title, in the cycle is reported as already tracked rather than
-  added again. It is filed in `APPLICATIONS_CYCLE`, dated today unless the
+  application's notes. Rows added straight to the spreadsheet are imported
+  first; then an application with the same link (checked before any scrape)
+  or the same company and title in the cycle is reported as already tracked
+  rather than added again. The scrape and the spreadsheet mirror are cut off
+  at the agent's deadline, so a slow page cannot cost the reply; a cut-off
+  mirror is recorded as a failed sync. It is filed in `APPLICATIONS_CYCLE`, dated today unless the
   text says otherwise, and mirrored to the spreadsheet like one created in
   the web app. There is no SMS undo for applications.
 - Replies are capped at 1,600 characters.

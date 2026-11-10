@@ -82,7 +82,11 @@ export async function runSmsAgent(options: {
 }): Promise<AgentReply> {
   const clock = options.clock ?? Date.now;
   const deadline = options.deadline ?? Number.POSITIVE_INFINITY;
-  const { client, context } = options;
+  const { client } = options;
+  // Tools see the same deadline, so a slow scrape cannot outlast it.
+  const context: ToolContext = Number.isFinite(deadline)
+    ? { ...options.context, remainingMs: () => deadline - clock() }
+    : options.context;
   const messages = buildMessages(
     options.history,
     options.text,

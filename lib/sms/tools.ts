@@ -1,7 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
-import type { CreateApplicationInput } from "@/lib/applications/contracts";
+import {
+  createApplicationSchema,
+  type CreateApplicationInput,
+} from "@/lib/applications/contracts";
 import {
   createTaskSchema,
   plannerRangeQuerySchema,
@@ -44,12 +47,19 @@ type TrackedApplication = Pick<
 
 /** The application tracker operations the SMS agent is allowed to perform. */
 export type ApplicationOperations = {
+  /**
+   * The current cycle's applications, after pulling in rows added straight
+   * to the spreadsheet, so a duplicate check sees those too.
+   */
   list(
     userId: string,
+    signal?: AbortSignal,
   ): Promise<{ cycle: string; applications: TrackedApplication[] }>;
+  /** Creates one; `list` has just refreshed the cycle from the sheet. */
   create(
     userId: string,
     input: CreateApplicationInput,
+    signal?: AbortSignal,
   ): Promise<TrackedApplication>;
   /** Absent when no Firecrawl key is configured. */
   readPosting?: PostingReader;
@@ -62,6 +72,11 @@ export type ToolContext = {
   timeZone: string;
   /** Overridable for tests; defaults to the clock and a real timer. */
   now?: () => Date;
+  /**
+   * Milliseconds left before the agent must reply. Slow outside calls (a
+   * posting scrape, the spreadsheet mirror) are cut off when it runs out.
+   */
+  remainingMs?: () => number;
   sleep?: (ms: number) => Promise<void>;
 };
 
@@ -143,6 +158,7 @@ const getGoalsInput = z.object({
 const addApplicationInput = z.object({
   url: z
     .string()
+    .max(2000)
     .url()
     .refine((value) => /^https?:\/\//i.test(value), "Expected an http(s) link")
     .optional()
@@ -164,7 +180,8 @@ const addApplicationInput = z.object({
       "Job title. Only when the text names it; otherwise read from the link",
     ),
   applied_on: calendarDate.optional().describe("Defaults to today"),
-  notes: z.string().max(4000).optional(),
+  // Leaves room for the link within the tracker's 5,000-character notes.
+  notes: z.string().max(2500).optional(),
 });
 
 type ToolSpec<T> = {
@@ -429,22 +446,33 @@ async function setTaskDone(
 /**
  * Records an application, reading the company and title from the posting
  * when the text gives a link. Details stated in the text win over the page.
- * The link is kept in the notes, which is also how a repeat is recognised.
+ * The link is kept in the notes, which is also how a repeat is recognised:
+ * a link already tracked is reported before any scrape, so an expired posting
+ * still answers "already tracked".
  */
 async function addApplication(
   context: ToolContext,
   input: z.infer<typeof addApplicationInput>,
 ) {
   const { applications, userId } = context;
-  let { company, title } = input;
+  const signal = untilDeadline(context);
 
+  const { applications: tracked } = await applications.list(userId, signal);
+  const sameLink = input.url
+    ? tracked.find((application) => notesLink(application.notes, input.url!))
+    : undefined;
+  if (sameLink) {
+    return { ...describeApplication(sameLink), already_tracked: true };
+  }
+
+  let { company, title } = input;
   if ((!company || !title) && input.url) {
     if (!applications.readPosting) {
       throw new ValidationError(
         "Links can't be read here; ask for the company and job title",
       );
     }
-    const posting = await applications.readPosting(input.url);
+    const posting = await applications.readPosting(input.url, signal);
     company ??= posting.company ?? undefined;
     title ??= posting.title ?? undefined;
   }
@@ -460,26 +488,40 @@ async function addApplication(
     );
   }
 
-  const { applications: tracked } = await applications.list(userId);
   const same = (a: string, b: string) =>
     a.localeCompare(b, undefined, { sensitivity: "base" }) === 0;
-  const existing = tracked.find(
+  const sameRole = tracked.find(
     (application) =>
-      (input.url && application.notes?.includes(input.url)) ||
-      (same(application.company, company) && same(application.title, title)),
+      same(application.company, company) && same(application.title, title),
   );
-  if (existing) {
-    return { ...describeApplication(existing), already_tracked: true };
+  if (sameRole) {
+    return { ...describeApplication(sameRole), already_tracked: true };
   }
 
-  const notes = [input.notes?.trim(), input.url].filter(Boolean).join("\n");
-  const created = await applications.create(userId, {
+  // The tracker's own contract: rejects an impossible date (2026-02-30) here,
+  // as an error the model can explain, rather than at the database.
+  const body = createApplicationSchema.parse({
     company,
     title,
     appliedOn: input.applied_on ?? today(context),
-    notes: notes || null,
+    notes: [input.notes?.trim(), input.url].filter(Boolean).join("\n") || null,
   });
-  return describeApplication(created);
+  return describeApplication(await applications.create(userId, body, signal));
+}
+
+/** Whether the notes hold this exact link, ignoring a trailing slash. */
+function notesLink(notes: string | null, url: string) {
+  const bare = (value: string) => value.replace(/\/+$/, "");
+  return (notes ?? "")
+    .split(/\s+/)
+    .some((token) => token !== "" && bare(token) === bare(url));
+}
+
+function untilDeadline(context: ToolContext) {
+  const remaining = context.remainingMs?.();
+  return remaining === undefined
+    ? undefined
+    : AbortSignal.timeout(Math.max(0, remaining));
 }
 
 function describeApplication(application: TrackedApplication) {

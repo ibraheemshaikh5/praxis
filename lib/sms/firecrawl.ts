@@ -3,7 +3,10 @@ import { z } from "zod";
 export type JobPosting = { company: string | null; title: string | null };
 
 /** Reads a job posting's company and title from its page. */
-export type PostingReader = (url: string) => Promise<JobPosting>;
+export type PostingReader = (
+  url: string,
+  signal?: AbortSignal,
+) => Promise<JobPosting>;
 
 const SCRAPE_URL = "https://api.firecrawl.dev/v2/scrape";
 
@@ -46,7 +49,8 @@ export function firecrawlPostingReader(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
 ): PostingReader {
-  return async (url) => {
+  return async (url, signal) => {
+    const timeout = AbortSignal.timeout(SCRAPE_TIMEOUT_MS);
     let response: Response;
     try {
       response = await fetchImpl(SCRAPE_URL, {
@@ -67,7 +71,7 @@ export function firecrawlPostingReader(
             },
           ],
         }),
-        signal: AbortSignal.timeout(SCRAPE_TIMEOUT_MS),
+        signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
       });
     } catch (error) {
       throw new PostingUnreadableError(
@@ -99,7 +103,10 @@ function clean(value: string | null | undefined) {
 }
 
 function describe(error: unknown) {
-  if (error instanceof Error && error.name === "TimeoutError") {
+  if (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  ) {
     return "timed out";
   }
   return error instanceof Error ? error.message : String(error);
